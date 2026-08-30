@@ -8,6 +8,7 @@ to that. Ollie is fully functional with `available() == False`.
 from __future__ import annotations
 
 import ctypes
+import math
 import platform
 import re
 from pathlib import Path
@@ -49,6 +50,16 @@ def _load() -> ctypes.CDLL | None:
         ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_int32),
         ctypes.POINTER(ctypes.c_int32), ctypes.c_int32, ctypes.c_int32,
         ctypes.POINTER(ctypes.c_int32),
+    ]
+
+    lib.ollie_score_memories.restype = ctypes.c_int32
+    lib.ollie_score_memories.argtypes = [
+        ctypes.c_char_p,                  # terms, newline separated
+        ctypes.c_char_p,                  # search texts, newline separated
+        ctypes.POINTER(ctypes.c_int32),   # 5 per record
+        ctypes.POINTER(ctypes.c_double),  # 2 per record
+        ctypes.c_int32,
+        ctypes.POINTER(ctypes.c_double),  # out_scores
     ]
 
     lib.ollie_version.restype = ctypes.c_char_p
@@ -101,6 +112,33 @@ def py_rank(lexical: list[float], category_hit: list[int], lengths: list[int],
     return [i for _score, i in scored[:k]]
 
 
+def py_score_memories(terms: list[str], texts: list[str], ints: list[int],
+                      doubles: list[float]) -> list[float]:
+    """Reference implementation. `ints` is 5 per record, `doubles` is 2 per record."""
+    out: list[float] = []
+    for i, haystack in enumerate(texts):
+        overlap = sum(1 for t in terms if t and t in haystack)
+        importance, locked, commitment, sensitivity, confirm = ints[i * 5:i * 5 + 5]
+        confidence, age_days = doubles[i * 2:i * 2 + 2]
+
+        lexical = min(1.0, overlap / 3.0)
+        recency = 1.0 / (1.0 + math.log1p(max(0.0, age_days)))
+        score = (0.34 * lexical
+                 + 0.24 * (importance / 5.0)
+                 + 0.16 * confidence
+                 + 0.12 * recency
+                 + (0.14 if locked else 0.0)
+                 + (0.15 if commitment else 0.0))
+        if sensitivity == 2:
+            score -= 0.30
+        elif sensitivity == 1:
+            score -= 0.05
+        if confirm:
+            score -= 0.10
+        out.append(score)
+    return out
+
+
 def py_physical_ram() -> int:
     import subprocess
     try:
@@ -140,6 +178,33 @@ def rank(lexical: list[float], category_hit: list[int], lengths: list[int],
     out = (ctypes.c_int32 * take)()
     count = lib.ollie_rank(c_lex, c_cat, c_len, n, take, out)
     return [int(out[i]) for i in range(count)]
+
+
+def score_memories(terms: list[str], texts: list[str], ints: list[int],
+                   doubles: list[float]) -> list[float]:
+    """Score every stored memory against the current message.
+
+    Includes the term matching, not just the arithmetic. An earlier split that did the
+    matching in Python and only the multiply-adds here measured slower than pure Python,
+    because marshalling through ctypes cost more than it saved. Records must contain no
+    newline in their search text; the store guarantees that.
+    """
+    n = len(texts)
+    if n == 0:
+        return []
+    lib = _load()
+    if lib is None:
+        return py_score_memories(terms, texts, ints, doubles)
+
+    out = (ctypes.c_double * n)()
+    lib.ollie_score_memories(
+        "\n".join(terms).encode("utf-8", "ignore"),
+        "\n".join(texts).encode("utf-8", "ignore"),
+        (ctypes.c_int32 * len(ints))(*ints),
+        (ctypes.c_double * len(doubles))(*doubles),
+        n, out,
+    )
+    return [float(out[i]) for i in range(n)]
 
 
 def physical_ram() -> int:

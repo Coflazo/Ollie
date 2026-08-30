@@ -375,6 +375,33 @@ class Store:
             )
         return mid
 
+    def memories_for_scoring(self, profile_id: str) -> list[dict]:
+        """Every live memory, with metadata and the plaintext search surface, but without
+        decrypting the values.
+
+        Ranking runs on every turn over every stored record. Decrypting all of them to
+        score them means an AES operation per memory per message, and it means the whole
+        of someone's history sits in process memory in the clear every time they say
+        anything. Scoring here against `search_text`, then decrypting only the handful
+        that survive, is both faster and a smaller exposure.
+        """
+        rows = self.db.execute(
+            "SELECT id, kind, subject, predicate, search_text, confidence, importance, "
+            "sensitivity, user_locked, requires_confirmation, created_at "
+            "FROM memories WHERE profile_id=? AND superseded_by IS NULL",
+            (profile_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def decrypt_values(self, memory_ids: list[str]) -> dict[str, str]:
+        """Plaintext for a specific set of memories, and nothing else."""
+        if not memory_ids:
+            return {}
+        placeholders = ",".join("?" * len(memory_ids))
+        rows = self.db.execute(
+            f"SELECT id, enc_value FROM memories WHERE id IN ({placeholders})",
+            memory_ids).fetchall()
+        return {r["id"]: self.crypt.dec(r["enc_value"]) for r in rows}
+
     def memories(self, profile_id: str, include_superseded: bool = False) -> list[dict]:
         sql = "SELECT * FROM memories WHERE profile_id=?"
         if not include_superseded:

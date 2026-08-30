@@ -12,12 +12,16 @@ reference implementation both are tested against.
 
 from __future__ import annotations
 
-import math
 import re
+import sys
 import time
 from dataclasses import dataclass
 
+from . import config
 from .store import Store
+
+sys.path.insert(0, str(config.NATIVE))
+import loader as native  # noqa: E402
 
 STOPWORDS = {
     "the", "a", "an", "and", "or", "but", "if", "then", "than", "so", "because", "as",
@@ -124,20 +128,27 @@ def search_corpus(store: Store, text: str, *, mature: bool, limit: int = 4,
     except Exception:
         return []  # a malformed MATCH must not take down the turn
 
-    ranks = _norm([r["rank"] for r in rows])
-    out: list[Passage] = []
-    for row, lex in zip(rows, ranks):
-        if row["sensitivity"] == "explicit" and not mature:
-            continue
-        score = 0.72 * lex
-        if row["category"] in priors:
-            score += 0.20
-        # Long chunks say more; very short ones are usually headings that slipped through.
-        score += 0.08 * min(1.0, len(row["text"]) / 1800)
-        out.append(Passage(row["id"], row["text"], row["title"], row["category"],
-                           row["sensitivity"], score))
+    eligible = [r for r in rows if not (r["sensitivity"] == "explicit" and not mature)]
+    if not eligible:
+        return []
 
-    out.sort(key=lambda p: p.score, reverse=True)
+    lex = _norm([r["rank"] for r in eligible])
+    # Fusion runs natively: BM25 relevance, the category prior, and a length bonus, since
+    # very short chunks are usually headings that slipped through the splitter.
+    order = native.rank(
+        lex,
+        [int(r["category"] in priors) for r in eligible],
+        [len(r["text"]) for r in eligible],
+        len(eligible),
+    )
+    out = [
+        Passage(eligible[i]["id"], eligible[i]["text"], eligible[i]["title"],
+                eligible[i]["category"], eligible[i]["sensitivity"],
+                0.72 * lex[i]
+                + 0.20 * (1.0 if eligible[i]["category"] in priors else 0.0)
+                + 0.08 * min(1.0, len(eligible[i]["text"]) / 1800))
+        for i in order
+    ]
     # One passage per book keeps a single verbose source from crowding out the rest.
     picked: list[Passage] = []
     used: set[str] = set()
@@ -151,48 +162,64 @@ def search_corpus(store: Store, text: str, *, mature: bool, limit: int = 4,
     return picked
 
 
+SENSITIVITY_CODE = {"normal": 0, "personal": 1, "special_category": 2}
+COMMITMENT_KINDS = ("boundary", "promise", "open_thread")
+MIN_MEMORY_SCORE = 0.18
+
+
 def search_memories(store: Store, profile_id: str, text: str, *, mature: bool,
                     limit: int = 6) -> list[MemoryHit]:
-    """Rank the user's own records. Deliberately not FTS — the set is small enough to
-    score directly, and doing it here keeps the sensitivity rules in one readable place."""
+    """Rank the user's own records against the current message.
+
+    Two things make this different from the corpus search. The sensitivity rules are
+    exclusions rather than penalties, so they are applied here in Python where they are
+    readable and testable. And nothing is decrypted until it has earned a place in the
+    prompt: scoring runs against the plaintext search column, and only the survivors get
+    their values decrypted.
+    """
     terms = set(keywords(text, limit=20))
     now = time.time()
-    scored: list[MemoryHit] = []
 
-    for m in store.memories(profile_id):
-        haystack = f"{m['subject']} {m['predicate']} {m['value']}".lower()
-        overlap = sum(1 for t in terms if t in haystack)
-        lexical = min(1.0, overlap / 3.0)
+    candidates = [
+        m for m in store.memories_for_scoring(profile_id)
+        # A special-category record is never casually resurfaced outside the mode it
+        # belongs to. A boundary is the exception: it must always be visible, because
+        # forgetting a limit is worse than mentioning a sensitive one.
+        if not (m["sensitivity"] == "special_category"
+                and not mature and m["kind"] != "boundary")
+    ]
+    if not candidates:
+        return []
 
-        age_days = max(0.0, (now - m["created_at"]) / 86400)
-        recency = 1.0 / (1.0 + math.log1p(age_days))
+    # Flattened so the whole ranking crosses into native code in one call: 5 ints and
+    # 2 doubles per record, plus the terms and the search surfaces as newline-joined
+    # blobs. Newlines are stripped because they are the record separator.
+    ints: list[int] = []
+    doubles: list[float] = []
+    texts: list[str] = []
+    for m in candidates:
+        ints += [m["importance"], int(m["user_locked"]),
+                 int(m["kind"] in COMMITMENT_KINDS),
+                 SENSITIVITY_CODE.get(m["sensitivity"], 0),
+                 int(m["requires_confirmation"])]
+        doubles += [m["confidence"], max(0.0, (now - m["created_at"]) / 86400)]
+        texts.append(m["search_text"].lower().replace("\n", " "))
 
-        score = (0.34 * lexical
-                 + 0.24 * (m["importance"] / 5.0)
-                 + 0.16 * m["confidence"]
-                 + 0.12 * recency
-                 + (0.14 if m["user_locked"] else 0.0))
+    scores = native.score_memories(sorted(terms), texts, ints, doubles)
 
-        if m["kind"] in ("boundary", "promise", "open_thread"):
-            score += 0.15  # things a person would be rude to forget
+    ranked = sorted(
+        ((s, i) for i, s in enumerate(scores) if s > MIN_MEMORY_SCORE),
+        key=lambda pair: (-pair[0], pair[1]),
+    )[:limit]
 
-        if m["sensitivity"] == "special_category":
-            if not mature and m["kind"] != "boundary":
-                continue  # never casually resurfaced outside the mode it belongs to
-            score -= 0.30
-        elif m["sensitivity"] == "personal":
-            score -= 0.05
-
-        if m["requires_confirmation"]:
-            score -= 0.10
-
-        if score > 0.18:
-            scored.append(MemoryHit(m["id"], m["kind"], m["subject"], m["predicate"],
-                                    m["value"], m["confidence"], m["importance"],
-                                    m["sensitivity"], score))
-
-    scored.sort(key=lambda x: x.score, reverse=True)
-    return scored[:limit]
+    values = store.decrypt_values([candidates[i]["id"] for _s, i in ranked])
+    return [
+        MemoryHit(candidates[i]["id"], candidates[i]["kind"], candidates[i]["subject"],
+                  candidates[i]["predicate"], values.get(candidates[i]["id"], ""),
+                  candidates[i]["confidence"], candidates[i]["importance"],
+                  candidates[i]["sensitivity"], score)
+        for score, i in ranked
+    ]
 
 
 def expand_with_graph(store: Store, profile_id: str, hits: list[MemoryHit],

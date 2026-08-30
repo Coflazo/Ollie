@@ -250,8 +250,8 @@ because a future reader deserves to know the trade was measured rather than assu
 is a good choice for a project with many targets; this has one, so a build system would be
 ceremony.
 
-Three functions: physical RAM via `sysctl`, the source-overlap guard as a word-level longest
-common substring, and retrieval fusion returning a top-k. Exposed through `extern "C"` and
+Four functions: physical RAM via `sysctl`, the source-overlap guard, retrieval fusion
+returning a top-k, and memory ranking including its term matching. Exposed through `extern "C"` and
 loaded with ctypes, so there is no pybind11 dependency and no ABI negotiation.
 
 Every function has a pure-Python twin, and `tests/test_native_parity.py` runs both on the
@@ -424,7 +424,7 @@ ollie/
 prompts/        the immutable contract, the character, the runtime templates
 native/         the C++ hot paths and their Python twins
 web/            the five screens
-tests/          205 tests, none of which need a model
+tests/          267 tests, none of which need a model
 docs/           this document and the handoff
 ```
 

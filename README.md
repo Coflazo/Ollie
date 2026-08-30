@@ -232,7 +232,7 @@ open episode two, assert the fact is still there and the open thread survived.
 
 ### Code quality
 
-205 tests, no network required. A `FakeOllama` test double runs the entire turn pipeline
+267 tests, no network required. A `FakeOllama` test double runs the entire turn pipeline
 without inference, which is the only way to assert deterministic things about a stochastic
 system. You can prove that a reply containing "I'm here for you" gets rejected and
 regenerated.
@@ -289,6 +289,36 @@ already read costs the demo.
 source, then regenerates it with the sources removed from the prompt. A model that has
 started reciting will recite again if it can still see the text.
 
+### What the native code actually buys
+
+`scripts/benchmark.py` measures each native path against its Python twin, because "we used
+C++ so it is fast" is not a claim anyone should accept without a number. On the 8 GB Intel
+build machine:
+
+| Path | Python | Native | |
+|---|---|---|---|
+| Copyright guard, 120-word reply vs a retrieved passage | 1.44 ms | 0.18 ms | 8x |
+| Copyright guard, 400 vs 900 words | 40.41 ms | 1.01 ms | 40x |
+| Memory ranking, 500 stored memories | 1.90 ms | 1.47 ms | 1.3x |
+| Retrieval fusion, 40-passage pool | 0.023 ms | 0.034 ms | 0.7x |
+
+The overlap win is algorithmic rather than linguistic. The obvious implementation is the
+longest-common-substring dynamic program at O(n·m); the native one binary searches the
+answer, since "a shared run of length L exists" is monotone in L, and settles it in
+O((n+m) log n) with rolling hashes. Every hash hit is verified token by token, so a
+collision can cost time but can never produce a wrong answer.
+
+The last row is the honest one: at the pool size retrieval actually uses, the native fusion
+is marginally *slower* than Python, because crossing the ctypes boundary costs more than
+the arithmetic saves. It is kept because the difference is eleven microseconds and the same
+code path serves any scale. Memory ranking only became worth crossing for once the term
+matching moved across too; an earlier version that passed precomputed counts and did only
+the multiply-adds measured 0.4x, and that result is why the current one looks the way it
+does.
+
+None of this makes a reply arrive sooner. The model dominates. What it buys is running
+the guards on every single turn instead of sampling them.
+
 ---
 
 ## Running it
@@ -318,7 +348,7 @@ Other commands:
 ./.venv/bin/python -m ollie ingest --books /path/to/books  # index your own library
 ./.venv/bin/python -m ollie dump memories                  # decrypt records for debugging
 ./.venv/bin/python -m ollie reset                          # delete every conversation
-./.venv/bin/python -m pytest                               # 205 tests
+./.venv/bin/python -m pytest                               # 267 tests
 ```
 
 ---
@@ -366,7 +396,7 @@ ollie/       engine: persona, types16, memory, retrieval, safety, style, privacy
 prompts/     the voice: immutable contract, character core, runtime templates
 native/      C++20 hot paths, each with a Python twin
 web/         React interface
-tests/       205 tests, no network required
+tests/       267 tests, no network required
 docs/covers/ thumbnails for this document
 ```
 

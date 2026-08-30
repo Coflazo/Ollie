@@ -106,6 +106,59 @@ def test_rank_parity_on_random_input(seed: int) -> None:
         loader.py_rank(lexical, category, lengths, k)
 
 
+# ---------------------------------------------------------------- memory scoring
+
+
+def _memory_args(rng: random.Random, n: int):
+    terms = sorted({rng.choice(WORDS) for _ in range(rng.randint(1, 8))})
+    texts = [" ".join(rng.choice(WORDS) for _ in range(rng.randint(1, 14)))
+             for _ in range(n)]
+    ints: list[int] = []
+    doubles: list[float] = []
+    for _ in range(n):
+        ints += [rng.randint(1, 5), rng.randint(0, 1), rng.randint(0, 1),
+                 rng.randint(0, 2), rng.randint(0, 1)]
+        doubles += [rng.random(), rng.random() * 500]
+    return terms, texts, ints, doubles
+
+
+def test_memory_scoring_handles_empty() -> None:
+    assert loader.score_memories([], [], [], []) == []
+    assert loader.py_score_memories([], [], [], []) == []
+
+
+def test_memory_scoring_rewards_a_term_match() -> None:
+    args = (["climbing"], ["user likes climbing", "user dislikes coriander"],
+            [3, 0, 0, 0, 0, 3, 0, 0, 0, 0], [0.9, 1.0, 0.9, 1.0])
+    scores = loader.score_memories(*args)
+    assert scores[0] > scores[1]
+
+
+def test_special_category_is_penalised_more_than_personal() -> None:
+    base = ([], ["x", "x", "x"],
+            [3, 0, 0, 0, 0,  3, 0, 0, 1, 0,  3, 0, 0, 2, 0],
+            [0.9, 1.0] * 3)
+    normal, personal, special = loader.score_memories(*base)
+    assert normal > personal > special
+
+
+def test_a_locked_memory_outranks_an_otherwise_identical_one() -> None:
+    args = ([], ["x", "x"], [3, 0, 0, 0, 0, 3, 1, 0, 0, 0], [0.9, 1.0, 0.9, 1.0])
+    unlocked, locked = loader.score_memories(*args)
+    assert locked > unlocked
+
+
+@pytest.mark.parametrize("seed", range(30))
+def test_memory_scoring_parity_on_random_input(seed: int) -> None:
+    rng = random.Random(seed + 5000)
+    args = _memory_args(rng, rng.randint(1, 40))
+    native_scores = loader.score_memories(*args)
+    python_scores = loader.py_score_memories(*args)
+    assert len(native_scores) == len(python_scores)
+    for a, b in zip(native_scores, python_scores):
+        assert abs(a - b) < 1e-9, (a, b)
+
+
 # ------------------------------------------------------------------------- probe
 
 
