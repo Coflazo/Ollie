@@ -45,14 +45,15 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
     }
   })
   function toggleFocus() {
-    setFocus((f) => {
-      try {
-        localStorage.setItem('ollie.focus', f ? '' : '1')
-      } catch {
-        /* private browsing; the mode still works for this session */
-      }
-      return !f
-    })
+    // The write stays out of the updater: React may call an updater more than once, and a
+    // state function that touches storage is the kind of impurity StrictMode exists to find.
+    const next = !focus
+    setFocus(next)
+    try {
+      localStorage.setItem('ollie.focus', next ? '1' : '')
+    } catch {
+      /* private browsing; the mode still works for this session */
+    }
   }
 
   const endRef = useRef<HTMLDivElement>(null)
@@ -252,10 +253,14 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
                 <Meter fraction={ctx.fraction} stage={ctx.stage} />
               </div>
             )}
+            {/* Below lg the rails are already hidden, so leaving focus mode there would
+                take this strip away and give nothing back — including the only control
+                that returns it. The way out is offered where there is something to go to. */}
             <button
               onClick={toggleFocus}
-              className="ml-auto text-[11px] text-[var(--color-faint)] underline-offset-4
-                         transition-colors hover:text-[var(--color-muted)] hover:underline"
+              className="ml-auto hidden text-[11px] text-[var(--color-faint)] underline-offset-4
+                         transition-colors hover:text-[var(--color-muted)] hover:underline
+                         lg:block"
             >
               show the panels
             </button>
@@ -492,11 +497,12 @@ function ReplyChips({
   const { memories_used, sources_used, style_violations, attempts } = explanation
   return (
     // Receded at rest so the conversation reads as a conversation, not an audit log.
-    // Hover on the reply or keyboard focus brings it back, and an open drawer holds it —
-    // the provenance is still one glance away, it just stops shouting under every turn.
+    // Hover on the reply or keyboard focus brings it back, and an open drawer holds it.
+    // 55% is deliberate: 35% measured at 1.38:1 against the ink, which is invisible, and a
+    // provenance chip nobody notices exist is indistinguishable from no provenance at all.
     <div
       className={`mt-2 transition-opacity duration-200 focus-within:opacity-100 ${
-        open ? 'opacity-100' : 'opacity-35 group-hover/reply:opacity-100'
+        open ? 'opacity-100' : 'opacity-55 group-hover/reply:opacity-100'
       }`}
     >
       <div className="flex flex-wrap items-center gap-1.5">
