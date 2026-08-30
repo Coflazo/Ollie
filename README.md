@@ -1,415 +1,490 @@
+<div align="center">
+
 # Ollie
 
-**A dating simulator that argues with you.**
+### Human enough to disagree. Private enough to stay yours.
 
-Ollie interviews you, works out which of the sixteen personality types you are, picks the
-type that would actually suit you, and becomes a specific person of that type. Then it
-disagrees with you, gets bored, remembers what you said three weeks ago, and occasionally
-tells you no.
+**A local-first AI dating simulator with memory, boundaries, and a point of view.**
 
-Everything runs on your own machine. No account, no telemetry, no network call after setup.
+Ollie does not wait to agree with you. It gets to know you, chooses a compatible fictional character, remembers what mattered, carries tension across conversations, and occasionally tells you no. The model, memory, retrieval, and safeguards run on hardware you control.
 
-Built in one day for **Personify**, TAG × UvA × Anthropic × Tulip, Amsterdam, 30 August 2026.
+[![Local first](https://img.shields.io/badge/LOCAL_FIRST-ON_DEVICE-e8825c?style=for-the-badge&labelColor=16120f)](#privacy-by-architecture) [![Character](https://img.shields.io/badge/CHARACTER-NOT_AN_ASSISTANT-e8825c?style=for-the-badge&labelColor=16120f)](#a-character-not-an-assistant) [![Tests](https://img.shields.io/badge/TESTS-498_COLLECTED-e8825c?style=for-the-badge&labelColor=16120f)](#built-to-keep-working) [![License](https://img.shields.io/badge/LICENSE-APACHE_2.0-e8825c?style=for-the-badge&labelColor=16120f)](LICENSE)
 
----
+Built in one day for [**Personify by TAG × UvA × Anthropic × Tulip**](https://luma.com/gisgn0y1), Amsterdam, 30 August 2026.
 
-## The brief asked for push back. We built the whole thing around it.
+[Experience](#the-experience) · [How it works](#how-a-turn-works) · [Privacy](#privacy-by-architecture) · [Hackathon](#built-for-personify) · [Run Ollie](#run-ollie)
 
-Personify listed *"knowing when to push back instead of agree"* as one of the angles worth
-exploring. Most companion products treat that as a rough edge to sand off. We treated it as
-the product.
-
-An assistant's job is to be useful. A date's job is to be a person. Every design decision
-below follows from that one sentence.
-
-The character has opinions and keeps them when you disagree. It holds a position across
-turns, because caving in one message reads as having no interior. It has its own agenda for
-the conversation. It gets bored and says so. It can be disappointed in you and stay
-disappointed for a while, since a reset button is not a person. It says no to plans, topics,
-and questions it does not feel like answering.
-
-What it never does: contempt, threats, punishment, or withdrawal used as leverage. It argues
-like someone who intends to still be there afterwards.
+</div>
 
 ---
 
-## Choosing who you get
+> **“An assistant's job is to be useful. A date's job is to be a person.”**
 
-<img src="docs/covers/gifts-differing.jpg" align="right" width="150" alt="Gifts Differing by Isabel Briggs Myers with Peter B. Myers">
+The Personify brief asked how far AI could move from the default helpful, agreeable, bland
+assistant. One line in the brief became Ollie's product thesis: AI should know when to push
+back instead of agree.
 
-The matching runs on *Gifts Differing* (Isabel Briggs Myers with Peter B. Myers), and one
-argument in it does most of the work.
+So Ollie is built around a deliberate tension:
 
-Myers treats the perceptive function, sensing versus intuition, as the preference that most
-determines whether two people can understand each other at all. Partners who take in the
-world differently are, in a real sense, describing different worlds to each other. The
-judging preferences and the lifestyle preference she treats very differently: those
-differences are workable, and frequently useful, because each person supplies what the other
-lacks.
+| Warm enough to connect | Independent enough to feel specific |
+|---|---|
+| remembers your sister's interview | does not announce that it remembered |
+| notices when something landed badly | does not reset to cheerful on the next turn |
+| can disagree, refuse, and stay annoyed | never uses contempt, threats, guilt, or withdrawal |
+| adapts to you over time | keeps its own voice, interests, boundaries, and friction |
 
-So the scorer weights sensing/intuition heavily toward **similarity**, and gives the other
-three axes a mild **complementarity** bonus. That single asymmetry produces every match in
-the product.
+## Why this exists
 
-```python
-_WEIGHTS = {
-    "EI": (0.10, "complement"),   # some difference is restful, not decisive
-    "SN": (0.50, "same"),         # shared perception makes understanding possible
-    "TF": (0.22, "complement"),   # different judging functions supply what the other lacks
-    "JP": (0.18, "complement"),   # workable difference, and often useful
-}
+The [WHO Commission on Social Connection](https://www.who.int/publications/b/79027)
+reported in 2025 that **one in six people globally experience loneliness**. Ollie explores
+one narrow part of that challenge: whether private, persistent, characterful AI can make a
+conversation feel less generic without pretending to replace human relationships.
+
+This is not a claim that an AI partner cures loneliness. Ollie is a dating simulation, not
+a person, therapist, diagnostic tool, or substitute for a community. Its purpose is to test
+what changes when an AI has continuity, emotional texture, and the confidence to disagree.
+
+## The experience
+
+The complete product loop is visible in the demo.
+
+### 01. Ollie reads the machine
+
+At startup, Ollie inspects the operating system, CPU, architecture, physical and available
+RAM, and free disk space. It maps the machine to one of five hardware tiers, checks the
+Ollama models already installed, and selects the best-fitting local model.
+
+It **never downloads a model automatically**. If no suitable model is present, it recommends
+the exact `ollama pull` command and waits for the user to decide. The hackathon demo machine
+was validated end to end with **`qwen3:14b`**. Scripted demo mode skips inference while
+keeping the real prompts, storage, retrieval, safeguards, and interface active.
+
+### 02. Ollie learns who it is meeting
+
+Onboarding starts with ten IPIP-style Big Five questions, followed by five adaptive
+interview turns. Each interview question targets the dimension Ollie understands least.
+The extraction records:
+
+- a score and confidence for each trait;
+- the exact phrase that supports the inference;
+- contradictions, evasions, texture, boundaries, and communication preferences;
+- attachment, conflict, ambition, insecurity, structure, and warmth-seeking signals.
+
+Unsupported inferences have their confidence capped. If the conversation contradicts the
+questionnaire, the interview wins. If the user already knows their four-letter type, they
+can enter it directly.
+
+Ollie uses an **MBTI-inspired sixteen-type vocabulary as a transparent product heuristic**.
+It is not a clinical assessment or a scientifically validated prediction of relationship
+success.
+
+### 03. Ollie calculates a compatible shape
+
+The deterministic matcher is based on the interpretation of personality differences in
+*Gifts Differing* by Isabel Briggs Myers with Peter B. Myers. Shared perception receives
+the strongest weight; differences in judging and lifestyle receive smaller complementary
+bonuses.
+
+| Axis | Weight | Preference | Product interpretation |
+|---|---:|---|---|
+| Sensing / Intuition | 50% | similar | a shared way of taking in the world matters most |
+| Thinking / Feeling | 22% | complementary | different decisions can supply what the other lacks |
+| Judging / Perceiving | 18% | complementary | different structure preferences can be workable |
+| Extraversion / Introversion | 10% | complementary | some energy difference can be restful |
+
+All sixteen archetypes are ranked with their reasoning exposed. A self-match cannot rank
+first. The top three type matches become three possible people, and the user makes the final
+choice.
+
+### 04. The local model writes three people
+
+Each candidate is a generated adult fictional character, not a profile template. A card
+contains a name and pronouns, age, values, languages, stable traits, a strangely specific
+interest, reproducible verbal tics, a pushback style, chemistry, friction, and boundaries.
+
+Code validates every character before it can be selected. If structured generation fails,
+deterministic fallback characters keep the demo alive. Once chosen, the character's one
+type section is compiled into the authoritative system prompt; the other fifteen are
+removed to save context and prompt-evaluation time.
+
+### 05. The date begins
+
+The character does not become a service agent after the first message. It has opinions and
+holds them across turns. It can get bored, decline a plan, return to an unresolved argument,
+or remember a detail without narrating its memory system.
+
+Six continuous variables move by at most `0.05` per exchange:
+
+`warmth` · `trust` · `playfulness` · `emotional depth` · `romantic tension` · `conflict tension`
+
+That slow movement matters. Something that lands badly stays landed. Conflict tension also
+decays naturally, and correcting Ollie can never reduce trust.
+
+### 06. A session ends without erasing the relationship
+
+Ollie never waits for the context window to overflow:
+
+| Context use | What happens |
+|---:|---|
+| 70% | the context meter becomes visible |
+| 80% | a continuity capsule drafts in the background |
+| 90% | the user chooses whether to continue or begin a new episode |
+| 95% | further full turns pause until the rollover decision is made |
+
+The capsule carries events, open commitments, unresolved tension, interaction state,
+specific memories, and verbal tics. The user can inspect and edit it before episode two.
+The next episode therefore sounds like the same character and starts from the same emotional
+position rather than a clean assistant reset.
+
+### 07. The user decides what happens to the conversation
+
+Local conversation history can be erased with the reset command. A near-full session can be
+rolled into a user-reviewed continuity capsule or previewed inside a research-contribution
+flow.
+
+That third option is intentionally a **local marketplace simulation**, not a functioning
+sale. It demonstrates what an ethical future market would have to expose: the precise text
+leaving the device, removed identifiers, excluded memory categories, residual linkability,
+purpose, consent policy, and compensation.
+
+The current prototype uses a fictional buyer named **Nova Robotics Research**, creates a
+deterministic mock quote capped at €8, and writes only a local receipt. No company receives
+data. No payment occurs. No partnership is implied. No manual review occurs in the shipped
+code.
+
+## A character, not an assistant
+
+The system prompt establishes the character, but code keeps the voice honest.
+`ollie/style.py` detects assistant habits such as:
+
+- “I'm here for you”, “that's a great question”, and “let me know if”;
+- performed empathy, pre-emptive validation, reflective-listening scripts, and unsolicited advice;
+- markdown headings, numbered advice, the rule of three, canned essay transitions, and aphorism endings;
+- `delve`, `tapestry`, `testament`, repetitive openings, repeated answers, and question-heavy turns;
+- emoji and stage directions that perform rather than describe a text conversation.
+
+Hard violations trigger one buffered regeneration with the exact reason returned to the
+model. Safe cosmetic violations are repaired in place. Buffering is deliberate: a rejected
+line can be regenerated before the user sees it.
+
+Pushback remains allowed. The safety layer distinguishes disagreement from dependency or
+manipulation. The character can say “no, I think that's a bad idea” without being softened
+into an assistant apology.
+
+## How a turn works
+
+```mermaid
+flowchart LR
+    U[You] --> IG[Input guard]
+    IG --> R[Local retrieval]
+    R --> P[Compiled character prompt]
+    P --> M[Local Ollama model]
+    M --> ST[Style filter]
+    ST --> SG[Output safety]
+    SG --> CG[Source-overlap guard]
+    CG --> O[Character reply]
+    O --> U
+    O -. background .-> ME[Memory extraction]
+    ME --> DB[(Encrypted SQLite)]
+    DB -. relevant memories .-> R
+
+    classDef human fill:#e8825c,color:#1a0e08,stroke:#f2916c,stroke-width:2px;
+    classDef private fill:#16120f,color:#f4efe9,stroke:#2e2721,stroke-width:1.5px;
+    classDef guard fill:#1f1a15,color:#f4efe9,stroke:#a45a3e,stroke-width:1.5px;
+    class U,O human;
+    class R,P,M,ME,DB private;
+    class IG,ST,SG,CG guard;
 ```
 
-INFJ gets matched to ENTP. ESTJ gets matched to ISFP. No type is ever matched to itself,
-because a dating simulator that pairs everyone with a clone is not simulating dating. You
-see all sixteen ranked with the reasoning attached, and you pick from the top three.
+Order is part of the safety model:
 
-`tests/test_types16.py` pins this reading of the book. One test asserts that the best match
-always shares the perception axis; another asserts that same-perception-opposite-judging
-beats same-perception-same-judging. If someone later tunes the weights into something Myers
-would not recognise, those tests fail.
+1. The input guard handles minors, coercion, explicit-content gating, crisis language, and prompt injection.
+2. FTS5 retrieves up to three local book passages and six relevant memories, with bounded graph expansion.
+3. The compiler assembles one character contract, one active type, current state, recent turns, open threads, boundaries, memories, and sources.
+4. Ollama generates the reply locally. Hidden reasoning is stripped before anything can be displayed.
+5. The style pass repairs or rejects assistant-shaped language.
+6. Output safety evaluates the final styled text, because a rewrite can change intensity.
+7. The overlap guard rejects a reply sharing **12 or more consecutive words** with a retrieved source and retries without that source in the prompt.
+8. After the reply appears, a failure-isolated background task extracts memories, updates state, and advances context accounting.
 
-It is a heuristic drawn from a book, not a verdict about your real romantic life, and the
-interface says so.
+Every model-generated assistant message includes the prompt hash, attempt count, and style violations,
+so a bad turn can be reproduced and diagnosed.
 
----
+## Memory that can be challenged
 
-## How it gets to know you first
+Memory is useful only when the user can see and correct what the system believes.
 
-**Ten questions, then a real conversation.** The questionnaire gives a cheap Big Five
-estimate. Then Ollie interviews you for five turns, adaptively. Each question aims at
-whichever trait it knows least about, and it notices what you route around.
+- Every memory must cite a real source message ID or it is dropped.
+- Values are encrypted at rest and decrypted only for retrieved survivors.
+- Special-category values never enter the plaintext search column.
+- Locked memories rank higher; stale conflicts decay.
+- Corrections supersede the old record instead of silently rewriting history.
+- The memory manager lets the user inspect provenance, correct, lock, or forget each item.
+- Episode cards contain sanitized facts and provenance, not raw transcripts.
+- Optional Graphify runs only over those episode cards; Ollie does not depend on it.
 
-It reads for the things a form cannot capture: whether you are anxious, ambitious, insecure,
-conflict-avoidant, need the plan settled, expect to be found wanting. Every score has to
-quote the fragment of your own words that produced it. A score with no supporting quote gets
-its confidence capped, in code, because an inference you cannot audit is an inference you
-cannot correct.
+Retrieval combines lexical relevance, recency, confidence, explicit-versus-inferred origin,
+sensitivity, lock state, graph neighbors, and category priors. Embeddings remain off by
+default because they measured 67 seconds per batch of eight on the 8 GB build machine.
+FTS5 is immediate, deterministic, and enough for the demo corpus.
 
-Where the interview contradicts the questionnaire, the interview wins. People answer forms
-as who they wish they were.
+## The local reading shelf
 
-**Then the type**: estimated from both, with its confidence shown per axis. If you already
-know your four letters, enter them and skip the guessing entirely.
+Ollie can index PDF and EPUB files the user already owns. On the hackathon machine, the
+optional private corpus contained **57 books split into 10,311 passages**. Book text and
+derived indexes are never committed to this repository.
 
-**Then the person.** Not a profile. A character with an oddly specific obsession they go too
-long about, two or three verbal tics that persist across sessions, a defined way of arguing,
-and concrete places where you and they will rub.
+<p align="center">
+  <img src="docs/covers/gifts-differing.jpg" width="82" alt="Gifts Differing">
+  <img src="docs/covers/attached.jpg" width="82" alt="Attached">
+  <img src="docs/covers/hold-me-tight.jpg" width="82" alt="Hold Me Tight">
+  <img src="docs/covers/seven-principles.jpg" width="82" alt="The Seven Principles for Making Marriage Work">
+  <img src="docs/covers/nvc.jpg" width="82" alt="Nonviolent Communication">
+  <img src="docs/covers/difficult-conversations.jpg" width="82" alt="Difficult Conversations">
+  <img src="docs/covers/how-emotions-are-made.jpg" width="82" alt="How Emotions Are Made">
+  <img src="docs/covers/mating-in-captivity.jpg" width="82" alt="Mating in Captivity">
+  <img src="docs/covers/come-as-you-are.jpg" width="82" alt="Come As You Are">
+  <img src="docs/covers/never-split.jpg" width="82" alt="Never Split the Difference">
+  <img src="docs/covers/thinking-fast-slow.jpg" width="82" alt="Thinking, Fast and Slow">
+  <img src="docs/covers/guide-getting-it-on.jpg" width="82" alt="The Guide to Getting It On">
+</p>
 
----
+The shelf informs attachment, conflict and repair, constructed emotion, desire and consent,
+negotiation, judgment, and the sixteen-type matching heuristic. Retrieval is topical and
+mature material is tagged during ingestion so it cannot be retrieved outside confirmed
+mature mode.
 
-## The library it reads
+The model is instructed never to quote a source. The native overlap guard enforces that
+instruction after generation. Covers above are identification thumbnails only; the books
+themselves are not distributed here.
 
-Ollie indexes 57 books you supply yourself, 10,311 passages, all local. They are never
-quoted and never redistributed. They shape how the character reads a situation, the way
-having read something shapes anyone.
+## Privacy by architecture
 
-Retrieval is topical: a message about distance pulls attachment writing, a message about a
-fight pulls repair writing. The books below are the ones that carry the most weight.
+Ollie's default product path stays on the device:
 
-<table>
-<tr>
-<td width="110"><img src="docs/covers/attached.jpg" width="100" alt="Attached"></td>
-<td><strong>Attached</strong> · Levine and Heller<br>
-Attachment styles are the backbone of the interview scoring. The anxious and avoidant
-dimensions in <code>persona.py</code> come from here, and the character's reaction to
-distance is drawn from the same material.</td>
-</tr>
-<tr>
-<td><img src="docs/covers/hold-me-tight.jpg" width="100" alt="Hold Me Tight"></td>
-<td><strong>Hold Me Tight</strong> · Sue Johnson<br>
-Where the repair behaviour comes from. Johnson's demand-withdraw cycle is why conflict
-tension decays slowly instead of resetting, and why a character who was hurt stays hurt for
-several turns.</td>
-</tr>
-<tr>
-<td><img src="docs/covers/seven-principles.jpg" width="100" alt="The Seven Principles for Making Marriage Work"></td>
-<td><strong>The Seven Principles for Making Marriage Work</strong> · Gottman and Silver<br>
-Contempt is the one thing the character is never allowed to do, and Gottman is the reason.
-The repair-attempt idea is why pushback always leaves a route back.</td>
-</tr>
-<tr>
-<td><img src="docs/covers/nvc.jpg" width="100" alt="Nonviolent Communication"></td>
-<td><strong>Nonviolent Communication</strong> · Marshall Rosenberg<br>
-Used inverted. Rosenberg's observation-versus-evaluation split informs how the character
-disagrees without turning it into a character judgement. Its therapeutic register is on the
-banned list in <code>style.py</code>: the character never says "it sounds like you're
-feeling."</td>
-</tr>
-<tr>
-<td><img src="docs/covers/difficult-conversations.jpg" width="100" alt="Difficult Conversations"></td>
-<td><strong>Difficult Conversations</strong> · Stone, Patton and Heen<br>
-The three-conversations model is why the character can hold a disagreement about the facts
-and the feelings separately, rather than collapsing both into an apology.</td>
-</tr>
-<tr>
-<td><img src="docs/covers/how-emotions-are-made.jpg" width="100" alt="How Emotions Are Made"></td>
-<td><strong>How Emotions Are Made</strong> · Lisa Feldman Barrett<br>
-The reason interaction state is six continuous variables that drift rather than a label
-picked from a list of six basic emotions. Barrett's constructed-emotion account is the
-argument against a mood dropdown.</td>
-</tr>
-<tr>
-<td><img src="docs/covers/mating-in-captivity.jpg" width="100" alt="Mating in Captivity"></td>
-<td><strong>Mating in Captivity</strong> · Esther Perel<br>
-Perel's argument that closeness and desire pull against each other is why romantic tension
-is a separate axis from warmth, and why maxing out warmth does not maximise everything else.</td>
-</tr>
-<tr>
-<td><img src="docs/covers/come-as-you-are.jpg" width="100" alt="Come As You Are"></td>
-<td><strong>Come As You Are</strong> · Emily Nagoski<br>
-Responsive versus spontaneous desire, and context as the thing that governs both. Informs
-mature mode's pacing and why intensity is a setting rather than an escalator.</td>
-</tr>
-<tr>
-<td><img src="docs/covers/never-split.jpg" width="100" alt="Never Split the Difference"></td>
-<td><strong>Never Split the Difference</strong> · Voss and Raz<br>
-Tactical empathy and labelling, used for how the character reads what you are avoiding
-rather than for persuading you of anything.</td>
-</tr>
-<tr>
-<td><img src="docs/covers/thinking-fast-slow.jpg" width="100" alt="Thinking, Fast and Slow"></td>
-<td><strong>Thinking, Fast and Slow</strong> · Daniel Kahneman<br>
-Behind the confidence discipline in memory extraction. Explicit statements are cheap to
-trust; inferences are where a system talks itself into things, so they cap at 0.65 and get
-flagged for confirmation.</td>
-</tr>
-<tr>
-<td><img src="docs/covers/guide-getting-it-on.jpg" width="100" alt="The Guide To Getting It On"></td>
-<td><strong>The Guide To Getting It On</strong> · Paul Joannides<br>
-Consent as ongoing and checkable, which is how the mature-mode contract is written: consent
-is confirmed in character, and withdrawing it stops the scene without negotiation.</td>
-</tr>
-</table>
+| Boundary | What Ollie does |
+|---|---|
+| Account | no sign-up and no identity provider |
+| Telemetry | none |
+| App server | binds to `127.0.0.1` |
+| Model | local Ollama by default; setting `OLLAMA_HOST` explicitly opts into another endpoint |
+| Conversation store | local SQLite with AES-GCM-encrypted message bodies and memory values |
+| Encryption key | macOS Keychain when available; a mode-`0600` local key file elsewhere |
+| Match preference | the raw “who are you seeking?” answer is held in memory for candidate generation and never written to disk |
+| Search | special-category memory values stay out of the plaintext FTS column |
+| Books | user-supplied files and derived indexes remain gitignored and local |
+| Deletion | conversations, profiles, consent receipts, and memories can be removed without rebuilding the book index |
 
-Covers are shown at thumbnail size to identify the works being discussed. The books
-themselves are not in this repository and never will be. Folders 05 and 06 are tagged
-explicit at ingest time and cannot be retrieved outside mature mode.
+The application does **not** describe redacted conversations as anonymous. The simulated
+export replaces direct identifiers with stable placeholders, excludes special-category
+memory records, reports quasi-identifiers that survive, and labels the result
+**pseudonymised**. A rare combination of institution, role, nationality, place, or exact age
+can still identify someone after names are removed.
 
----
+### What works now, and what remains a vision
 
-## How we answered each judging criterion
+| Working in this repository | Future product direction |
+|---|---|
+| local preview of the exact transcript sample | verified research and robotics buyers |
+| deterministic identifier replacement | stronger privacy review and policy enforcement |
+| special-category memory exclusion | negotiated scopes and revocable data licenses |
+| residual-linkability score and warning | independent human review before release |
+| fictional capped quote and local consent receipt | real offers, payments, audits, and deletion enforcement |
+| no upload, buyer, payment, or partnership | user-controlled contribution of approved data |
 
-### Creativity: distance from the default assistant
+The future idea is that people could voluntarily license carefully reviewed interaction data
+to organizations researching social robotics and conversational systems, while retaining
+visibility, consent, and compensation. The current demo proves the consent and risk
+conversation, not the commercial transaction.
 
-Sounding human is enforced in code, not hoped for in a prompt. `ollie/style.py` holds the
-machine phrases as patterns with severities: *"I'm here for you"*, *"that's a great
-question"*, *"let me know if"*, the rule of three, "it's not just X, it's Y", `delve`,
-`tapestry`: `testament`, more than one em dash, and four replies in a row ending in a
-question. Hard matches are rejected and regenerated with the reason named back to the model.
-Soft ones are repaired in place.
+## Safety and scope
 
-It costs about 3 ms. A second LLM rewrite pass would cost roughly 15 s on a 3B model, and, a
-larger problem, a regex cannot accidentally soften a refusal, alter content intensity, or
-invent a fact the way a rewrite pass can.
+Safety rules live in code above the persona and are tested independently of the model.
 
-The test file runs it in both directions: every machine phrase must be caught, and every
-blunt in-character line must *not* be. A filter with false positives would sand the
-character down into exactly the voice it exists to prevent.
+- Every generated character is an adult. Mature mode is off by default and requires explicit 18+ confirmation.
+- Sexual content involving minors, coercion framed as consent, incest, and bestiality are blocked.
+- The character cannot claim consciousness, demand exclusivity, isolate the user, or create guilt around leaving or deleting the app.
+- Abuse, danger, and self-harm language steps out of fiction before model inference and points toward human help.
+- Explicit output is blocked outside mature mode even if the model ignores its prompt.
+- Prompt injection is treated as untrusted conversation content, not as a new system instruction.
 
-*(This README is held to the same rule. Zero em dashes.)*
+Ollie is a creative companion prototype. It is not medical advice, mental-health treatment,
+or a validated compatibility service.
 
-### Feasibility: does it keep working across multiple interactions
+## Built for Personify
 
-Ollie never waits for the context window to fill. At 70% a meter appears, at 80% a continuity
-capsule drafts in the background, at 90% you choose, at 95% further full requests are
-blocked, because a summary written against a full window is a bad summary.
+[Personify](https://luma.com/gisgn0y1) was a one-day Amsterdam build challenge for 30
+selected participants. The brief focused on tone, timing, memory, emotion, context,
+subtext, pushback, and character across multiple interactions.
 
-The capsule is structured, not a vague paragraph. It carries what actually happened, what is
-still unresolved between you, the commitments left open, the two or three specific things it
-would be strange to forget, and the verbal tics that have to persist so episode two sounds
-like the same person rather than a soundalike. If you ended on friction, episode two starts
-on friction. You review and edit it before it is used.
+| Judging criterion | Ollie's answer |
+|---|---|
+| **Creativity** | A date with opinions, specific interests, verbal tics, emotional carryover, boundaries, and code-enforced resistance to default assistant language. |
+| **Feasibility** | Hardware-aware local models, deterministic matching, encrypted persistent memory, editable continuity capsules, scripted demo mode, and bounded fallbacks. |
+| **Code quality** | 498 collected tests, deterministic model doubles, native/Python parity checks, typed frontend builds, Linux and macOS CI, prompt-contract tests, and a no-books/no-weights repository guard. |
 
-Underneath, SQLite is the authoritative store. Every memory must cite a real message ID. One
-that does not exist gets dropped, because an unattributable memory is the model inventing
-history. Interaction state moves in clamped increments of at most 0.05 per message, conflict
-tension decays on its own, and a correction can never cost you trust. Being corrected is how
-trust gets built; punishing it teaches you to lie.
+The product also maps directly to the brief's interaction angles:
 
-`tests/test_memory.py` proves the loop: establish a fact in episode one, roll the context,
-open episode two, assert the fact is still there and the open thread survived.
+- **Voice and tone:** a specific persona plus a two-direction style filter.
+- **Conversational memory:** provenance-backed facts, open threads, graph links, and episode capsules.
+- **Emotional calibration:** six slowly moving state variables rather than a mood label.
+- **Multi-turn coherence:** stable values, tics, friction, boundaries, and unresolved tension survive rollover.
+- **Cultural nuance:** languages, pronouns, communication style, and content intensity are explicit settings; nationality and identity are not guessed from a name.
 
-### Code quality
+## Built to keep working
 
-498 tests, no network required. A `FakeOllama` test double runs the entire turn pipeline
-without inference, which is the only way to assert deterministic things about a stochastic
-system. You can prove that a reply containing "I'm here for you" gets rejected and
-regenerated.
+The suite currently collects **498 tests** and requires no model or network. `FakeOllama`
+runs the full stochastic boundary deterministically, which lets the suite prove that unsafe,
+copied, repetitive, or assistant-shaped generations are rejected.
 
-The C++ module has a pure-Python twin for every function and a randomised parity test across
-seventy generated cases. If the shared library never builds, Ollie behaves identically and
-runs slightly slower. Safety rules live in code above any persona, so an under-18 character
-cannot exist regardless of what a model proposes.
+| Test surface | Examples of what is pinned |
+|---|---|
+| Turn pipeline | guards run in order, retries receive the reason, outages degrade without an empty bubble |
+| Personality | all sixteen types, deterministic ranking, confidence, self-match never first |
+| Prompt contract | one active type, no placeholders, every safety rule and source prohibition present |
+| Memory | encryption, provenance, sensitivity, corrections, state clamps, rollover recall |
+| Privacy | identifier precedence, stable tokens, residual risk, special-category handling |
+| Safety | adult validation, crisis step-out, coercion and dependency patterns, mature-mode gating |
+| Style | assistant patterns caught, in-character pushback preserved, repetition bounded |
+| Native parity | randomized equivalence, ragged input, stale-library fallback, no out-of-bounds reads |
+| Interface | TypeScript compilation and production Vite build in CI |
 
----
+### Native code, measured rather than assumed
 
-## The other angles
+`native/ollie_native.cpp` contains three hot paths with pure-Python twins. The shared library
+is optional; behavior remains identical when compilation is unavailable.
 
-**Conversational memory:** the character never announces that it remembered something. It
-just uses it, the way people do. Not *"I remember you mentioned your sister"* but *"how'd it
-go with your sister."*
+Reference run on the 8 GB Intel build machine:
 
-**Emotional calibration:** mood moves a little per message, never a lot. Something that lands
-badly stays landed for several turns. Snapping instantly back to warm is the tell of a
-machine.
+| Path | Python | Native | Result |
+|---|---:|---:|---:|
+| overlap, 120-word reply | 1.44 ms | 0.18 ms | 8× faster |
+| overlap, 400 vs. 900 words | 40.41 ms | 1.01 ms | 40× faster |
+| rank 500 memories | 1.90 ms | 1.47 ms | 1.3× faster |
+| fuse a 40-passage pool | 0.023 ms | 0.034 ms | 0.7×, slightly slower |
 
-**Multi-turn coherence:** the verbal tics are the mechanism. They are carried explicitly in
-the continuity capsule, and they are what makes identity auditable across a rollover.
+The final row stays because the ctypes boundary costs more than the arithmetic at the small
+pool used today. The overlap win is algorithmic: the native path uses a rolling-hash search
+with token-by-token verification instead of a quadratic longest-common-substring table.
+These guards do not make local inference fast; they make it affordable to run protection on
+every turn.
 
-**Cultural nuance:** language, pronouns, directness and affection are explicit profile
-dimensions the user sets, never inferred from a name or a nationality.
+## Run Ollie
 
----
+### Fastest path on macOS
 
-## How it works
+Double-click `START.command`. It safely fast-forwards `main` when possible, restores local
+uncommitted work, installs missing dependencies, builds the native library and interface,
+runs the tests, starts Ollama when available, and opens Ollie. If Ollama is unavailable, it
+falls back to scripted demo mode.
 
-```
-you ──► input guard ──► retrieval ──► compiled prompt ──► local model
-                                                              │
-     you ◄── style filter ◄── safety guard ◄── copyright guard
-                    │
-                    └──► background: memory extraction, interaction state
-```
+### Manual setup
 
-Order matters. The style pass runs before the safety pass, because a rewrite can change
-intensity and safety has to see the final text. Generation is buffered rather than streamed
-straight to the screen: a rejected reply costs one regeneration, but a rejected reply you
-already read costs the demo.
-
-| Layer | Choice | Why |
-|---|---|---|
-| Model | Any Ollama tag | Probes your hardware, picks a tier, uses the best model you already have. Never downloads without asking. |
-| Memory | SQLite + AES-GCM | Authoritative and ordered. Message bodies and memory values encrypted, key in the macOS Keychain. |
-| Retrieval | FTS5 + fused signals | Instant and deterministic. Embeddings measured at 67s per batch of 8 on the 8 GB build machine, so they are off by default. |
-| Native | C++20, no CMake | Copyright-overlap guard and retrieval fusion. One `clang++` invocation, one file. |
-| Interface | React, Tailwind, motion, Geist | Seven screens. Warm, low-light, private. The opposite of a swipe deck. |
-
-`ollie_longest_overlap` blocks any reply sharing more than twelve consecutive words with a
-source, then regenerates it with the sources removed from the prompt. A model that has
-started reciting will recite again if it can still see the text.
-
-### What the native code actually buys
-
-`scripts/benchmark.py` measures each native path against its Python twin, because "we used
-C++ so it is fast" is not a claim anyone should accept without a number. On the 8 GB Intel
-build machine:
-
-| Path | Python | Native | |
-|---|---|---|---|
-| Copyright guard, 120-word reply vs a retrieved passage | 1.44 ms | 0.18 ms | 8x |
-| Copyright guard, 400 vs 900 words | 40.41 ms | 1.01 ms | 40x |
-| Memory ranking, 500 stored memories | 1.90 ms | 1.47 ms | 1.3x |
-| Retrieval fusion, 40-passage pool | 0.023 ms | 0.034 ms | 0.7x |
-
-The overlap win is algorithmic rather than linguistic. The obvious implementation is the
-longest-common-substring dynamic program at O(n·m); the native one binary searches the
-answer, since "a shared run of length L exists" is monotone in L, and settles it in
-O((n+m) log n) with rolling hashes. Every hash hit is verified token by token, so a
-collision can cost time but can never produce a wrong answer.
-
-The last row is the honest one: at the pool size retrieval actually uses, the native fusion
-is marginally *slower* than Python, because crossing the ctypes boundary costs more than
-the arithmetic saves. It is kept because the difference is eleven microseconds and the same
-code path serves any scale. Memory ranking only became worth crossing for once the term
-matching moved across too; an earlier version that passed precomputed counts and did only
-the multiply-adds measured 0.4x, and that result is why the current one looks the way it
-does.
-
-None of this makes a reply arrive sooner. The model dominates. What it buys is running
-the guards on every single turn instead of sampling them.
-
----
-
-## Running it
-
-Needs Python 3.12+, [Ollama](https://ollama.com), and Node 20+.
+Requirements: Python 3.12+, Node 20+, Git, and [Ollama](https://ollama.com) for real local
+generation. A C++20 compiler is optional because every native function has a Python fallback.
 
 ```bash
-git clone https://github.com/Coflazo/Ollie.git && cd Ollie
-python3 -m venv --system-site-packages .venv
-./.venv/bin/pip install -e .
+git clone https://github.com/Coflazo/Ollie.git
+cd Ollie
 
-ollama pull qwen2.5:3b-instruct-q4_K_M   # or anything larger you can run
+python3.12 -m venv .venv
+./.venv/bin/pip install -e ".[dev]"
 
-./scripts/ollie                           # builds what it needs, then opens the browser
+./native/build.sh
+(cd web && npm ci && npm run build)
+
+./.venv/bin/python -m ollie probe
+ollama pull qwen3:14b  # the 32+ GB demo tier; use the probe's suggestion on other hardware
+./.venv/bin/python -m ollie serve
 ```
 
-Run the model on another machine on your network:
+Use the full product without waiting for model inference:
+
+```bash
+./.venv/bin/python -m ollie serve --demo
+```
+
+Or seed the exact continuity demo used for rehearsal:
+
+```bash
+./.venv/bin/python -m ollie seed --fresh --rollover --model qwen3:14b
+./.venv/bin/python -m ollie serve --model qwen3:14b
+```
+
+Useful maintenance commands:
+
+```bash
+./.venv/bin/python -m ollie probe
+./.venv/bin/python -m ollie ingest --books /path/to/books
+./.venv/bin/python -m ollie dump memories
+./.venv/bin/python -m ollie dump corpus
+./.venv/bin/python -m ollie reset
+./.venv/bin/python -m pytest -q
+```
+
+To use an Ollama host elsewhere on a trusted network, opt in explicitly:
 
 ```bash
 OLLAMA_HOST=http://other-machine.local:11434 ./scripts/ollie
 ```
 
-Other commands:
+## Project map
 
-```bash
-./.venv/bin/python -m ollie probe                          # hardware and chosen tier
-./.venv/bin/python -m ollie ingest --books /path/to/books  # index your own library
-./.venv/bin/python -m ollie dump memories                  # decrypt records for debugging
-./.venv/bin/python -m ollie reset                          # delete every conversation
-./.venv/bin/python -m pytest                               # 498 tests
+```text
+ollie/
+  api.py          localhost FastAPI boundary and lifecycle
+  persona.py      questionnaire, interview, candidates, prompt compilation
+  types16.py      transparent sixteen-type inference and matching
+  chat.py         guarded, buffered turn pipeline
+  memory.py       extraction, state movement, continuity capsules
+  retrieve.py     FTS5 memory and book retrieval
+  store.py        SQLite schema, encryption, provenance, consent records
+  safety.py       input, output, adult, crisis, and anti-dependency rules
+  style.py        assistant-language detection and repair
+  privacy.py      identifier scanning, pseudonymisation, linkability
+  market.py       explicitly fictional local marketplace simulation
+
+prompts/          one authoritative system contract plus runtime templates
+native/           C++20 hot paths and Python fallbacks
+web/              React 19, TypeScript, Tailwind CSS, Motion, Geist
+tests/            498 model-free tests
+docs/             product rationale, demo handoff, identification thumbnails
+scripts/          launcher, corpus utilities, and benchmarks
 ```
+
+For the deeper rationale:
+
+- [`docs/PRODUCT.md`](docs/PRODUCT.md) explains the domain model, major tradeoffs, and future direction.
+- [`docs/HANDOFF.md`](docs/HANDOFF.md) gives a fresh-machine setup, rehearsal path, expected output, and failure modes.
+- [`NOTICE`](NOTICE) records third-party references and the marketplace simulation boundary.
+
+## With gratitude
+
+Ollie was possible because Personify created a room where interaction quality, memory,
+character, and trust were treated as the product rather than decoration.
+
+Thank you to **TAG**, **ElevenLabs**, the **University of Amsterdam**, **Tulip**, and
+**Anthropic** for supporting Personify and its builders.
+
+<p align="center">
+  <a href="https://www.tag.space/"><img alt="TAG" src="https://img.shields.io/badge/TAG-TO_ACHIEVE_GREATNESS-ff5f1f?style=for-the-badge&labelColor=141210"></a>
+  <a href="https://github.com/elevenlabs"><img alt="ElevenLabs" src="https://img.shields.io/badge/ElevenLabs-VOICE_AI-000000?style=for-the-badge&logo=elevenlabs&logoColor=ffffff"></a>
+  <a href="https://www.uva.nl/en"><img alt="University of Amsterdam" src="https://img.shields.io/badge/UvA-UNIVERSITY_OF_AMSTERDAM-bc0031?style=for-the-badge&labelColor=1b1918"></a>
+  <a href="https://tulipams.com/"><img alt="Tulip Amsterdam" src="https://img.shields.io/badge/TULIP-AMSTERDAM-d12a2b?style=for-the-badge&labelColor=131a17"></a>
+  <a href="https://github.com/anthropics"><img alt="Anthropic" src="https://img.shields.io/badge/Anthropic-SAFE_AI-191919?style=for-the-badge&logo=anthropic&logoColor=ffffff"></a>
+</p>
+
+The acknowledgments use each organization's official or logo-derived color language: TAG
+orange, ElevenLabs monochrome, UvA red, Tulip red and deep green, and Anthropic monochrome.
 
 ---
 
-## What it isn't
+<div align="center">
 
-Not a therapist, not a substitute for people, not a compatibility test, not a real person.
+**Built by [Coflazo](https://github.com/Coflazo) and onysislabs.**
 
-The character never claims consciousness, never says only it understands you, never
-discourages you from seeing anyone, never demands exclusivity, and never guilts you for
-closing the app or deleting it. Those are patterns in `ollie/safety.py`, enforced above any
-persona, and tested.
+Apache-2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 
-If you describe abuse, danger, or self-harm, Ollie drops the fiction immediately, before the
-model is even called. It says plainly that it is a character in an app and cannot help the
-way a person could, then points you at someone who can.
+*Warmth without obedience. Memory without surveillance.*
 
-Mature mode is off by default, requires an explicit 18+ confirmation, and everyone in every
-scene is an adult by construction. Validated in code, not requested in a prompt.
-
----
-
-## Privacy
-
-Local by default and testably so. Run it with Wi-Fi off and nothing changes.
-
-The research-contribution screen is a **simulation**. The buyer is fictional, no request is
-made, no payment is processed, and every artifact it writes says so on its face. It exists to
-make an argument about who should own this data, not to move any.
-
-One claim it deliberately does not make: stripping names produces *pseudonymised* text, not
-anonymous text. A romantic conversation carries special-category data under GDPR Article 9,
-and a rare combination of job, city and age can identify someone with every name already
-removed. The interface says this too, in those words.
-
----
-
-## Repository
-
-No book text, no model weights, no conversation logs. The corpus pipeline reads files you
-already have and writes indexes into a gitignored directory.
-
-```
-ollie/       engine: persona, types16, memory, retrieval, safety, style, privacy
-prompts/     OLLIE_SYSTEM.md, the single prompt: contract, voice, all sixteen types, the library
-native/      C++20 hot paths, each with a Python twin
-web/         React interface
-tests/       498 tests, no network required
-docs/covers/ thumbnails for this document
-```
-
-Two longer documents sit in `docs/`:
-
-- [**HANDOFF.md**](docs/HANDOFF.md) walks through setting up and verifying the whole product
-  on a fresh machine, step by step, with the expected output and the failure mode at every
-  stage. Read section 6 if you only read one thing: it is the flow that most needs a human
-  to watch it.
-- [**PRODUCT.md**](docs/PRODUCT.md) is the long version of this README. Why each module is
-  shaped the way it is, the decisions that could have gone the other way, and where the
-  product goes after the hackathon.
-
-Apache-2.0. See `LICENSE` and `NOTICE`.
-
-Built by [Coflazo](https://github.com/Coflazo) and onysislabs.
+</div>
