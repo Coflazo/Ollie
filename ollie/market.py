@@ -43,7 +43,16 @@ def build_preview(store: Store, *, profile_id: str, session_id: str) -> dict:
     """Redact the session locally and show the user exactly what a contribution would be."""
     messages = store.messages(session_id)
     profile = store.get("profiles", profile_id) or {}
+    memories = store.memories(profile_id)
+
+    # Names the system already knows. A pattern scanner cannot tell a first name from any
+    # other capitalised word, but the extractor has already recorded "sister is called
+    # Deniz" as a fact, so that name is known and must not survive into an export just
+    # because it was never typed into a profile field.
     names = [n for n in [profile.get("display_name", "")] if n]
+    for m in memories:
+        if any(cue in m["predicate"].lower() for cue in ("called", "named", "name is")):
+            names.extend(w for w in m["value"].split() if len(w) > 2)
 
     redacted: list[dict] = []
     all_spans: list[privacy.Span] = []
@@ -64,10 +73,8 @@ def build_preview(store: Store, *, profile_id: str, session_id: str) -> dict:
     # Anything the extractor flagged as special category is excluded by default rather
     # than redacted. Redacting a sentence about someone's sexuality still leaves a
     # sentence about someone's sexuality.
-    excluded = [m for m in store.memories(profile_id)
-                if m["sensitivity"] == "special_category"]
-
-    repairs = sum(1 for m in store.memories(profile_id) if m["kind"] == "correction")
+    excluded = [m for m in memories if m["sensitivity"] == "special_category"]
+    repairs = sum(1 for m in memories if m["kind"] == "correction")
     quote = mock_quote(len(redacted), len(set(profile.get("locale", "en"))),
                        repairs, risk["level"] == "high")
 

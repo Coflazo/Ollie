@@ -301,10 +301,26 @@ async def _consolidate(session: dict, result: chat.TurnResult) -> None:
         assistant_msg_id=result.message_id)
 
 
+@app.get("/v1/sessions/messages")
+async def session_messages() -> dict:
+    """The transcript so far. A resumed conversation has to show what was already said,
+    otherwise "it remembers you" is contradicted by an empty screen."""
+    session = S.session()
+    return {"episode": session["episode_number"], "messages": [
+        {"id": m["id"], "role": m["role"], "content": m["content"],
+         "meta": m["meta"]}
+        for m in S.store.messages(session["id"]) if m["role"] != "system"
+    ]}
+
+
 @app.get("/v1/sessions/context")
 async def context() -> dict:
     session = S.session()
+    # The session's own state is included so the interface can show it on load rather than
+    # waiting for the first turn. A resumed conversation should look resumed immediately.
     return {**memory.context_usage(S.store, session["id"], session["context_cap"]),
+            "state": session["state"],
+            "episode": session["episode_number"],
             "consolidation": S.last_consolidation}
 
 

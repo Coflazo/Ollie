@@ -65,6 +65,8 @@ export type Context = {
   cap: number
   fraction: number
   stage: 'ok' | 'meter' | 'draft' | 'choose' | 'block'
+  state?: Record<string, number | string | boolean>
+  episode?: number
   consolidation?: {
     committed: number
     threads: string[]
@@ -154,6 +156,12 @@ export const api = {
   send: (text: string) => post<TurnResponse>('/v1/sessions/messages', { text }),
 
   context: () => request<Context>('/v1/sessions/context'),
+
+  history: () =>
+    request<{
+      episode: number
+      messages: { id: string; role: string; content: string; meta: Record<string, unknown> }[]
+    }>('/v1/sessions/messages'),
 
   memories: () =>
     request<{ memories: MemoryRecord[]; threads: { id: string; title: string }[] }>('/v1/memories'),

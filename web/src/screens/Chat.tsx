@@ -8,7 +8,9 @@ import {
   type Explanation,
   type MemoryRecord,
 } from '../api'
+import { StateDial, type InteractionState } from '../StateDial'
 import { Button, Chip, Meter, Panel, ease, riseIn } from '../ui'
+import { Marketplace } from './Marketplace'
 
 type Bubble = {
   role: 'you' | 'them'
@@ -26,6 +28,9 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
   const [memories, setMemories] = useState<MemoryRecord[]>([])
   const [capsule, setCapsule] = useState<{ id: string; data: Capsule } | null>(null)
   const [episode, setEpisode] = useState(1)
+  const [state, setState] = useState<InteractionState | null>(null)
+  const [delta, setDelta] = useState<Record<string, number>>({})
+  const [market, setMarket] = useState(false)
 
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -38,11 +43,49 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
     if (!busy) inputRef.current?.focus()
   }, [busy])
 
+  // A resumed conversation has to look resumed straight away: the transcript, what it
+  // remembers, and the state it was left in. Without this, software that claims to
+  // remember you opens on an empty screen, which is the wrong first impression.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const [c, h] = await Promise.all([api.context(), api.history()])
+        setCtx(c)
+        if (c.state) setState(c.state)
+        setEpisode(c.episode ?? h.episode)
+        setBubbles(
+          h.messages.map((m) => ({
+            role: m.role === 'user' ? ('you' as const) : ('them' as const),
+            text: m.content,
+          })),
+        )
+      } catch {
+        /* a fresh session has no history; that is not an error */
+      }
+      await refreshMemories()
+    })()
+  }, [])
+
   async function refreshMemories() {
     try {
       setMemories((await api.memories()).memories)
     } catch {
       /* the drawer is informational; a failure here must not disturb the conversation */
+    }
+  }
+
+  /** Extraction runs server-side after the reply is already on screen, so the updated
+   *  state and its delta arrive a beat later than the message does. */
+  async function refreshAfterTurn() {
+    await refreshMemories()
+    try {
+      const c = await api.context()
+      setCtx(c)
+      if (c.consolidation?.state) setState(c.consolidation.state)
+      else if (c.state) setState(c.state)
+      setDelta(c.consolidation?.delta ?? {})
+    } catch {
+      /* same: informational */
     }
   }
 
@@ -59,8 +102,9 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
         { role: 'them', text: res.reply, explanation: res.explanation, latency: res.latency_ms },
       ])
       setCtx(res.context)
+      if (res.state) setState(res.state)
       // Extraction runs in the background on the server, so the drawer lags one beat.
-      setTimeout(refreshMemories, 1200)
+      setTimeout(refreshAfterTurn, 1200)
     } catch (e) {
       setBubbles((b) => [...b, { role: 'them', text: `(${String(e)})` }])
     } finally {
@@ -113,6 +157,8 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
           {ctx && <Meter fraction={ctx.fraction} stage={ctx.stage} />}
         </div>
 
+        {state && <StateDial state={state} delta={delta} />}
+
         {persona.tics?.length > 0 && (
           <div>
             <p className="text-[11px] text-[var(--color-faint)]">how they talk</p>
@@ -132,6 +178,13 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
             no cloud connection
           </p>
           {model && <p className="font-mono text-[11px] text-[var(--color-faint)]">{model}</p>}
+          <button
+            onClick={() => setMarket(true)}
+            className="text-left text-[11px] text-[var(--color-faint)] underline-offset-4
+                       transition-colors hover:text-[var(--color-muted)] hover:underline"
+          >
+            what this conversation is worth
+          </button>
         </div>
       </aside>
 
@@ -302,6 +355,8 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
           </AnimatePresence>
         </ul>
       </aside>
+
+      <AnimatePresence>{market && <Marketplace onClose={() => setMarket(false)} />}</AnimatePresence>
 
       <AnimatePresence>
         {capsule && (
