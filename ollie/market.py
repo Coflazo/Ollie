@@ -47,12 +47,23 @@ def build_preview(store: Store, *, profile_id: str, session_id: str) -> dict:
 
     # Names the system already knows. A pattern scanner cannot tell a first name from any
     # other capitalised word, but the extractor has already recorded "sister is called
-    # Deniz" as a fact, so that name is known and must not survive into an export just
-    # because it was never typed into a profile field.
+    # Deniz" as a fact, so that name is known and must not survive an export just because
+    # it was never typed into a profile field.
+    #
+    # The filter is deliberately narrow. Taking every word from the value redacted
+    # "user is called by their middle name" into "my [PERSON_1] [PERSON_4]", which
+    # destroys the text and tells the user something false about what was in it. A name
+    # here has to be a single capitalised alphabetic token in a short value.
     names = [n for n in [profile.get("display_name", "")] if n]
     for m in memories:
-        if any(cue in m["predicate"].lower() for cue in ("called", "named", "name is")):
-            names.extend(w for w in m["value"].split() if len(w) > 2)
+        if not any(cue in m["predicate"].lower()
+                   for cue in ("called", "named", "name is")):
+            continue
+        words = m["value"].split()
+        if len(words) > 3:
+            continue  # a sentence, not a name
+        names.extend(w.strip(".,'\"") for w in words
+                     if w[:1].isupper() and w.strip(".,'\"").isalpha() and len(w) > 2)
 
     redacted: list[dict] = []
     all_spans: list[privacy.Span] = []

@@ -406,6 +406,19 @@ The interview is on Thursday at ten, their sister Deniz is driving them, and non
 in episode two's visible transcript. If it answers correctly and in character, the whole
 feasibility argument is demonstrated in one exchange.
 
+There is also a scripted-model mode, which is what makes the product walkable on hardware
+that cannot run inference in under five minutes:
+
+```bash
+./.venv/bin/python -m ollie serve --demo
+```
+
+Everything except inference stays real: the real prompts get assembled, the real memory
+extraction runs, the real style filter rejects and regenerates, retrieval hits the real
+book index. One reply is deliberately written to sound like an assistant so the filter
+visibly catches it and the message shows "rewritten 1x". Useful for filming the video
+without waiting on generation, and for checking a UI change without burning a model call.
+
 Drop `--rollover` to land mid-conversation in episode one instead, which is the better
 starting point if you want to demo pushback or force a live rollover.
 
@@ -435,7 +448,7 @@ live.
 5. **Open "why this reply".** Show the memories and books that fed it. (20s)
 6. **Force the rollover, read the capsule, start episode two, ask about the earlier
    detail.** It remembers. (40s)
-7. **Close on the repository.** 330 tests, no network needed, C++ with a Python twin and a
+7. **Close on the repository.** 339 tests, no network needed, C++ with a Python twin and a
    randomised parity test, and a CI job that refuses to let a book into the repo. (20s)
 
 For the one-minute video, cut steps 4 and 6 only. Pushback and recall are the two things

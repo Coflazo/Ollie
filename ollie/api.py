@@ -53,6 +53,10 @@ class State:
         self.last_consolidation: dict = {}
         self.resumable: dict | None = None
 
+    # Set by `serve --demo`. Everything else stays real: real prompts, real extraction,
+    # real style filter, real retrieval. Only inference is scripted.
+    use_mock: bool = False
+
     @property
     def client(self) -> Ollama:
         """Built on first use, inside the loop that will actually use it.
@@ -63,7 +67,12 @@ class State:
         "Event loop is closed".
         """
         if self._client is None:
-            self._client = Ollama()
+            if self.use_mock:
+                from .mock import MockOllama
+
+                self._client = MockOllama()  # type: ignore[assignment]
+            else:
+                self._client = Ollama()
         return self._client
 
     async def resolve_model(self, override: str | None = None) -> str | None:
@@ -142,7 +151,12 @@ async def health() -> dict:
 @app.get("/v1/setup/probe")
 async def setup_probe(model: str | None = None) -> dict:
     alive = await S.client.alive()
-    chosen = await S.resolve_model(model) if alive else None
+    if S.use_mock:
+        # Demo mode has a model by definition, so do not go asking Ollama about one.
+        chosen = S.model or "demo:scripted"
+        S.installed = [chosen]
+    else:
+        chosen = await S.resolve_model(model) if alive else None
     return {
         "hardware": S.probe.as_dict(),
         "summary": hardware.describe(S.probe, S.tier),
@@ -499,6 +513,9 @@ async def startup() -> None:
 
     S.resumable = S.adopt_latest_session()
 
+    if S.use_mock:
+        S.model = S.model or "demo:scripted"
+        return
     if S.model:
         return  # the launcher already picked one; do not spend a round trip repeating it
     try:

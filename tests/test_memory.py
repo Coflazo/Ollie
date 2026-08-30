@@ -215,3 +215,58 @@ def test_context_meter_escalates(store: Store, session: dict) -> None:
     assert memory.context_usage(store, session["id"], 4096)["stage"] == "ok"
     store.append_message(session["id"], "user", "x", tokens=3000)
     assert memory.context_usage(store, session["id"], 4096)["stage"] in {"choose", "block"}
+
+
+# ------------------------------------------------- what the search surface contains
+
+
+def test_personal_values_stay_searchable(store: Store, profile: str,
+                                         session: dict) -> None:
+    """A name or a place is most of what makes a relationship memory findable. Withholding
+    it from the index sounded careful and meant "how is Deniz" could not retrieve the
+    record about Deniz."""
+    mid = store.append_message(session["id"], "user", "my sister Deniz is a vet")
+    store.add_memory(profile, "user_fact", "sister", "is called", "Deniz",
+                     0.95, 3, "personal", [mid])
+    store.add_memory(profile, "user_fact", "user", "likes", "climbing",
+                     0.9, 3, "normal", [mid])
+
+    hits = retrieve.search_memories(store, profile, "how is deniz", mature=False)
+    assert hits and hits[0].value == "Deniz", [h.value for h in hits]
+
+
+def test_special_category_values_stay_out_of_the_index(store: Store, profile: str,
+                                                       session: dict) -> None:
+    """This is where withholding actually protects something."""
+    mid = store.append_message(session["id"], "user", "x")
+    store.add_memory(profile, "user_fact", "user", "struggles with", "anxiety",
+                     0.9, 4, "special_category", [mid])
+    surface = store.db.execute("SELECT search_text FROM memories").fetchone()[0]
+    assert "anxiety" not in surface
+
+
+def test_an_older_database_is_reindexed_on_open(tmp_path) -> None:
+    """search_text is derived, so a definition change has to rebuild it. Without the
+    migration an existing install keeps retrieving by the old rules and nothing errors:
+    results are just quietly worse than on a fresh one."""
+    from ollie.store import SCHEMA_VERSION, Store as S
+
+    path = tmp_path / "old.db"
+    store = S(path, key=b"0" * 32)
+    profile = store.create_profile({}, {}, "x")
+    persona_id = store.create_persona(profile, {"display_name": "y"}, "h")
+    session_id = store.create_session(profile, persona_id, "m", 4096, {})
+    mid = store.append_message(session_id, "user", "x")
+    mem = store.add_memory(profile, "user_fact", "sister", "is called", "Deniz",
+                           0.95, 3, "personal", [mid])
+
+    # Simulate a database written before the change.
+    with store.tx() as db:
+        db.execute("UPDATE memories SET search_text='sister is called' WHERE id=?", (mem,))
+        db.execute("PRAGMA user_version = 1")
+    store.close()
+
+    reopened = S(path, key=b"0" * 32)
+    surface = reopened.db.execute("SELECT search_text FROM memories").fetchone()[0]
+    assert "Deniz" in surface
+    assert reopened.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION

@@ -19,7 +19,8 @@ from . import config, memory, persona, retrieve, safety, style
 from .ollama import Ollama, OllamaDown
 from .store import Store
 
-sys.path.insert(0, str(config.NATIVE))
+if str(config.NATIVE) not in sys.path:
+    sys.path.insert(0, str(config.NATIVE))
 import loader as native  # noqa: E402
 
 MAX_REGENERATIONS = 1

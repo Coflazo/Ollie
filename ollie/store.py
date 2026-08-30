@@ -250,6 +250,25 @@ def new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
 
+# Bumped when a derived column changes shape, so an existing database gets rebuilt rather
+# than silently retrieving worse than a fresh one would.
+SCHEMA_VERSION = 2
+
+
+def _search_surface(subject: str, predicate: str, value: str, sensitivity: str) -> str:
+    """The plaintext column retrieval scores against.
+
+    Only special-category values are withheld. An earlier version also withheld
+    `personal` ones, which sounded careful and was actually a bad trade: a name, a place
+    or an employer is most of what makes a relationship memory findable, and dropping it
+    meant "how is Deniz" could not retrieve the record about Deniz. Those values are still
+    encrypted at rest; this column is a local index in a local file, and withholding sex,
+    health, religion and orientation is where the protection actually matters.
+    """
+    surface = f"{subject} {predicate}"
+    return surface if sensitivity == "special_category" else f"{surface} {value}"
+
+
 class Store:
     def __init__(self, path: Path | None = None, key: bytes | None = None) -> None:
         config.ensure_dirs()
@@ -258,6 +277,35 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
         self.crypt = Crypt(key)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Rebuild derived columns when their definition changes.
+
+        `search_text` is an index, not a record, so it can be regenerated from the
+        encrypted values. Without this an existing database keeps retrieving by the old
+        rules and the difference is invisible: nothing errors, results are just quietly
+        worse than on a fresh install.
+        """
+        version = self.db.execute("PRAGMA user_version").fetchone()[0]
+        if version >= SCHEMA_VERSION:
+            return
+
+        rows = self.db.execute(
+            "SELECT id, subject, predicate, enc_value, sensitivity FROM memories"
+        ).fetchall()
+        with self.tx() as db:
+            for r in rows:
+                try:
+                    value = self.crypt.dec(r["enc_value"])
+                except Exception:
+                    continue  # a row we cannot decrypt is not one we can reindex
+                db.execute(
+                    "UPDATE memories SET search_text=? WHERE id=?",
+                    (_search_surface(r["subject"], r["predicate"], value,
+                                     r["sensitivity"]), r["id"]),
+                )
+            db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     @contextmanager
     def tx(self) -> Iterator[sqlite3.Connection]:
@@ -354,12 +402,7 @@ class Store:
         if not source_message_ids:
             raise ValueError("a memory without a source message is a hallucination")
         mid = new_id("mem")
-        # search_text is the unencrypted retrieval surface. Sensitive values stay out of
-        # it: we can find the memory by its subject and predicate without indexing the
-        # secret itself in the clear.
-        search = f"{subject} {predicate}"
-        if sensitivity == "normal":
-            search = f"{search} {value}"
+        search = _search_surface(subject, predicate, value, sensitivity)
         with self.tx() as db:
             db.execute(
                 "INSERT INTO memories(id, profile_id, persona_id, kind, subject, "

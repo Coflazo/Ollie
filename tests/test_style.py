@@ -86,7 +86,27 @@ def test_question_every_single_turn_is_rejected() -> None:
 
 # --------------------------------------------------- patterns from larger models
 
+# Captured verbatim from llama3.2:1b answering "i finally sent that application i was
+# nervous about" with the real character prompt. Three separate rules missed it on the
+# first attempt, which is why real output beats invented examples.
+REAL_MODEL_OUTPUT = (
+    "It sounds like you've been working on this application for a while, and it's great "
+    "that you're feeling confident about sending it now. Nervousness is completely "
+    "normal, especially when it comes to sharing your work."
+)
+
+
+def test_real_model_output_is_rejected() -> None:
+    result = style.check(REAL_MODEL_OUTPUT)
+    assert result.needs_regen
+    caught = {v.rule for v in result.violations}
+    assert {"stock_empathy", "flattery", "validation_opener"} <= caught, caught
+
+
 LARGE_MODEL_ISMS = [
+    "it sounds like you've been putting this off.",
+    "it's great that you sent it.",
+    "nervousness is completely normal.",
     "here's what i'd do:\n- talk to her\n- then sleep on it",
     "## What I think\n\nyou should call her.",
     "**Honestly**, that's a lot.",

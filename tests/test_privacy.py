@@ -136,3 +136,38 @@ def test_linkability_does_not_rescan() -> None:
     finally:
         privacy.scan = real_scan  # type: ignore[assignment]
     assert calls["n"] == 0
+
+
+# ------------------------------------------------- names the system already knows
+
+
+def test_a_known_name_is_redacted_from_the_export(store, profile, session) -> None:
+    """The extractor recorded it as a fact, so it is known, and a pattern scanner that
+    cannot tell a first name from any capitalised word is not a reason to leak it."""
+    from ollie import market
+
+    mid = store.append_message(session["id"], "user", "my sister Deniz is driving me")
+    store.add_memory(profile, "user_fact", "sister", "is called", "Deniz",
+                     0.95, 3, "personal", [mid])
+
+    preview = market.build_preview(store, profile_id=profile, session_id=session["id"])
+    assert "Deniz" not in preview["sample"][0]["text"]
+    assert preview["removed_by_kind"].get("name") == 1
+
+
+def test_a_naming_memory_that_is_a_sentence_does_not_redact_ordinary_words(
+        store, profile, session) -> None:
+    """Taking every word from the value turned "everyone calls me by my middle name"
+    into "my [PERSON_1] [PERSON_4]", which destroys the text and tells the user something
+    false about what was in it."""
+    from ollie import market
+
+    mid = store.append_message(
+        session["id"], "user", "everyone calls me by my middle name and it is fine")
+    store.add_memory(profile, "user_fact", "user", "is called by",
+                     "their middle name", 0.9, 3, "personal", [mid])
+
+    preview = market.build_preview(store, profile_id=profile, session_id=session["id"])
+    assert preview["sample"][0]["text"] == (
+        "everyone calls me by my middle name and it is fine")
+    assert preview["removed_by_kind"] == {}
