@@ -1,0 +1,51 @@
+Ollie
+Copyright 2026 Coflazo
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+---
+
+WHAT THIS REPOSITORY DOES NOT CONTAIN
+
+No book text, no model weights, no conversation logs, and no user data. The corpus
+pipeline reads files the user already has on their own machine and writes indexes into a
+gitignored directory. Nothing derived from a copyrighted source is redistributed here.
+
+`ollie_longest_overlap` (native/ollie_native.cpp, with a Python twin in native/loader.py)
+blocks any generated reply that reproduces more than twelve consecutive words from an
+imported source.
+
+---
+
+THIRD-PARTY WORK REFERENCED
+
+Personality framework
+    The sixteen-type matching heuristic in ollie/types16.py is our own weighting, derived
+    from arguments in "Gifts Differing: Understanding Personality Type" by Isabel Briggs
+    Myers with Peter B. Myers. The book is not included or redistributed. The weights and
+    all descriptive text in that module are written by us.
+
+Personality items
+    The onboarding questionnaire uses items in the style of the International Personality
+    Item Pool (https://ipip.ori.org), whose materials are in the public domain.
+
+Humanizer — https://github.com/blader/humanizer (MIT)
+    An agent skill, not a runtime dependency. Its catalogue of AI writing patterns
+    informed the rule set in ollie/style.py, which is our own implementation in code.
+
+Graphify — https://github.com/safishamsi/graphify (pip: graphifyy)
+    An optional extra, used only over sanitised episode cards. Not bundled, not required,
+    and not on any code path the product depends on.
+
+Ollama — https://ollama.com
+    Spoken to over its local HTTP API. Not bundled. Each model carries its own licence,
+    which the user accepts when they download it.
+
+---
+
+SIMULATED MARKETPLACE
+
+The research-contribution feature is a simulation. "Nova Robotics Research" is a fictional
+name invented for this project. No data is transmitted, no payment is processed, and no
+relationship with any real company is claimed or implied. Every artifact it writes carries
+that statement.

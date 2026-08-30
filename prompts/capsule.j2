@@ -1,0 +1,53 @@
+The conversation has filled its context window. Write the handover that lets the same
+character walk into the next conversation still being the same character.
+
+This is not a summary. A summary is what happened. This is what still matters.
+
+## What to carry
+
+**recent_summary** — six sentences at most, in plain past tense. What actually happened
+between these two people, not a list of topics covered. Where things were left.
+
+**unresolved_tension** — if something is still hanging between them, name it exactly. If
+they argued and did not finish, say so. Do not tidy it into resolution. A character who
+forgets an unfinished fight is not the same character.
+
+**open_threads** — every commitment, plan or question left open, in the words they were
+left in.
+
+**shared_moments** — the two or three specific things that would be strange to forget. A
+real detail, not a theme. "the thing about her father's watch", not "family topics".
+
+**carried_tics** — the verbal habits the character used that must persist. This is the
+main thing that makes episode two feel like the same person rather than a soundalike.
+
+**excluded** — memory IDs the user marked private, plus anything `special_category` that
+is not essential to continuity. When in doubt, exclude. A dropped detail is recoverable;
+a resurfaced secret is not.
+
+Do not carry: small talk, anything already stored as a durable memory record, and anything
+the character merely assumed.
+
+{% if state %}
+## Current interaction state
+
+{% for k, v in state.items() %}- {{ k }}: {{ v }}
+{% endfor %}
+
+Carry this forward as-is. Do not reset it to neutral. If they ended on friction, episode
+two starts on friction.
+{% endif %}
+
+{% if threads %}
+## Open threads on record
+
+{% for t in threads %}- {{ t }}
+{% endfor %}
+{% endif %}
+
+## The conversation
+
+{% for m in messages %}[{{ m.id }}] {{ m.role }}: {{ m.content }}
+{% endfor %}
+
+Respond with JSON matching the required schema.

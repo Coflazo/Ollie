@@ -1,0 +1,114 @@
+"""The C++ and the Python must agree, or the native path is a source of silent bugs.
+
+Ollie picks the native implementation when the shared library loads and the Python one
+when it does not. That is only safe if the two are indistinguishable, so these tests run
+both on the same inputs — including randomised ones, which is where hand-ported code
+actually diverges — and compare.
+
+The suite passes whether or not the library is built. When it is missing, the native calls
+fall through to Python and the comparisons become trivially true; `test_native_is_built`
+reports which mode ran so a green suite is never mistaken for coverage it did not have.
+"""
+
+from __future__ import annotations
+
+import random
+import sys
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "native"))
+import loader  # noqa: E402
+
+WORDS = ["the", "quick", "brown", "fox", "attachment", "anxious", "repair", "trust",
+         "conversation", "boundary", "desire", "listen", "apologise", "tuesday"]
+
+
+def test_native_is_built() -> None:
+    """Not an assertion about correctness — a report so CI output says which path ran."""
+    print(f"\nnative status: {loader.status()}")
+    assert loader.status()
+
+
+# ------------------------------------------------------------------- overlap guard
+
+
+@pytest.mark.parametrize("reply,source,expected", [
+    ("", "", 0),
+    ("hello", "", 0),
+    ("nothing in common here", "entirely different words", 0),
+    ("the quick brown fox", "the quick brown fox", 4),
+    ("a the quick brown fox b", "x the quick brown fox y", 4),
+    ("Attachment styles are not destiny", "attachment styles are NOT destiny!", 5),
+])
+def test_overlap_known_cases(reply: str, source: str, expected: int) -> None:
+    assert loader.longest_overlap(reply, source) == expected
+    assert loader.py_longest_overlap(reply, source) == expected
+
+
+def test_overlap_ignores_punctuation_and_case() -> None:
+    a = "Secure attachment, it turns out, is learnable."
+    b = "secure attachment it turns out is learnable"
+    assert loader.longest_overlap(a, b) == 7
+
+
+@pytest.mark.parametrize("seed", range(40))
+def test_overlap_parity_on_random_input(seed: int) -> None:
+    rng = random.Random(seed)
+    a = " ".join(rng.choice(WORDS) for _ in range(rng.randint(0, 40)))
+    b = " ".join(rng.choice(WORDS) for _ in range(rng.randint(0, 40)))
+    assert loader.longest_overlap(a, b) == loader.py_longest_overlap(a, b), (a, b)
+
+
+def test_overlap_is_symmetric() -> None:
+    a, b = "one two three four five", "zero one two three nine"
+    assert loader.longest_overlap(a, b) == loader.longest_overlap(b, a)
+
+
+# ----------------------------------------------------------------- retrieval rank
+
+
+def test_rank_orders_by_fused_score() -> None:
+    lexical = [0.9, 0.5, 0.7]
+    category = [0, 1, 0]
+    lengths = [2000, 500, 1800]
+    assert loader.rank(lexical, category, lengths, 3) == \
+        loader.py_rank(lexical, category, lengths, 3)
+
+
+def test_rank_respects_k() -> None:
+    assert len(loader.rank([0.1] * 10, [0] * 10, [100] * 10, 3)) == 3
+    assert len(loader.rank([0.1] * 2, [0] * 2, [100] * 2, 9)) == 2
+
+
+def test_rank_handles_empty() -> None:
+    assert loader.rank([], [], [], 5) == []
+    assert loader.rank([0.5], [0], [100], 0) == []
+
+
+def test_rank_ties_break_toward_lower_index() -> None:
+    """Deterministic ordering matters: the demo must not reshuffle between runs."""
+    out = loader.rank([0.5, 0.5, 0.5], [0, 0, 0], [900, 900, 900], 3)
+    assert out == [0, 1, 2]
+    assert out == loader.py_rank([0.5, 0.5, 0.5], [0, 0, 0], [900, 900, 900], 3)
+
+
+@pytest.mark.parametrize("seed", range(30))
+def test_rank_parity_on_random_input(seed: int) -> None:
+    rng = random.Random(seed + 1000)
+    n = rng.randint(1, 60)
+    lexical = [rng.random() for _ in range(n)]
+    category = [rng.randint(0, 1) for _ in range(n)]
+    lengths = [rng.randint(50, 4000) for _ in range(n)]
+    k = rng.randint(1, n)
+    assert loader.rank(lexical, category, lengths, k) == \
+        loader.py_rank(lexical, category, lengths, k)
+
+
+# ------------------------------------------------------------------------- probe
+
+
+def test_physical_ram_is_plausible() -> None:
+    ram = loader.physical_ram()
+    assert ram == 0 or 1e9 < ram < 2e12, f"implausible RAM reading: {ram}"

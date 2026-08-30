@@ -1,0 +1,56 @@
+@import 'tailwindcss';
+
+/* Warm, low-light, private. The opposite of a dating app: no cards to swipe, no red
+   accents, nothing that reads as a game with a score to maximise. */
+@theme {
+  --color-ink: #0d0b0a;
+  --color-surface: #17130f;
+  --color-raised: #211b16;
+  --color-line: #332a22;
+  --color-warm: #e8825c;
+  --color-warm-dim: #a45a3e;
+  --color-text: #f2ece5;
+  --color-muted: #9a8d80;
+  --color-faint: #6b6055;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+/* Ollie's own voice is lowercase and unhurried; the interface should not shout over it. */
+::selection {
+  background: var(--color-warm-dim);
+  color: var(--color-text);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

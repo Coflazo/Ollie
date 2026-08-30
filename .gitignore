@@ -1,0 +1,34 @@
+# Ollie never ships books, weights, or anyone's conversations.
+Books/
+corpus/
+graphify_ws/
+graphify-out/
+exports/
+*.epub
+*.pdf
+*.gguf
+*.bin
+
+# Local state
+*.db
+*.db-wal
+*.db-shm
+.ollie/
+data/
+
+# Build output
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+native/*.dylib
+native/*.so
+web/node_modules/
+web/dist/
+node_modules/
+
+# OS
+.DS_Store
+
+# Scratch
+pytest.ini
