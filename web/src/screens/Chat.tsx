@@ -33,6 +33,27 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
   const [delta, setDelta] = useState<Record<string, number>>({})
   const [market, setMarket] = useState(false)
   const [manager, setManager] = useState(false)
+  // Focus mode collapses both instrument panels so the conversation is alone on screen.
+  // Off by default: the rails are how a first run learns that the product keeps receipts,
+  // and hiding them would bury the provenance this whole design argues for. Focus is for
+  // once you are actually talking, so the choice is remembered.
+  const [focus, setFocus] = useState(() => {
+    try {
+      return localStorage.getItem('ollie.focus') === '1'
+    } catch {
+      return false
+    }
+  })
+  function toggleFocus() {
+    setFocus((f) => {
+      try {
+        localStorage.setItem('ollie.focus', f ? '' : '1')
+      } catch {
+        /* private browsing; the mode still works for this session */
+      }
+      return !f
+    })
+  }
 
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -147,9 +168,17 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
   const needsRollover = ctx && (ctx.stage === 'choose' || ctx.stage === 'block')
 
   return (
-    <div className="grid h-full grid-cols-1 lg:grid-cols-[15rem_minmax(0,1fr)_19rem]">
+    <div
+      className={`grid h-full grid-cols-1 ${
+        focus ? '' : 'lg:grid-cols-[15rem_minmax(0,1fr)_19rem]'
+      }`}
+    >
       {/* Left rail: who you are talking to, and how full the conversation is. */}
-      <aside className="hidden flex-col gap-6 border-r border-[var(--color-line)] px-5 py-6 lg:flex">
+      <aside
+        className={`flex-col gap-6 border-r border-[var(--color-line)] px-5 py-6 ${
+          focus ? 'hidden' : 'hidden lg:flex'
+        }`}
+      >
         <div>
           <h2 className="font-display text-2xl leading-none tracking-tight">
             {persona.display_name}
@@ -200,13 +229,40 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
           >
             what this conversation is worth
           </button>
+          <button
+            onClick={toggleFocus}
+            className="text-left text-[11px] text-[var(--color-faint)] underline-offset-4
+                       transition-colors hover:text-[var(--color-muted)] hover:underline"
+          >
+            just the conversation
+          </button>
         </div>
       </aside>
 
       {/* Centre: the conversation. */}
       <main className="flex min-h-0 flex-col overflow-x-hidden">
+        {focus && (
+          <div className="flex items-center gap-4 border-b border-[var(--color-line)] px-6 py-2">
+            <span className="text-[12px] text-[var(--color-muted)]">{persona.display_name}</span>
+            <span data-numeric className="text-[11px] text-[var(--color-faint)]">
+              episode {episode}
+            </span>
+            {ctx && (
+              <div className="w-44">
+                <Meter fraction={ctx.fraction} stage={ctx.stage} />
+              </div>
+            )}
+            <button
+              onClick={toggleFocus}
+              className="ml-auto text-[11px] text-[var(--color-faint)] underline-offset-4
+                         transition-colors hover:text-[var(--color-muted)] hover:underline"
+            >
+              show the panels
+            </button>
+          </div>
+        )}
         <div className="flex-1 overflow-y-auto px-6 py-10">
-          <div className="mx-auto max-w-2xl space-y-6">
+          <div className="mx-auto max-w-[44rem] space-y-8">
             {bubbles.length === 0 && (
               <motion.p
                 {...riseIn}
@@ -233,8 +289,8 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
                       {b.text}
                     </p>
                   ) : (
-                    <div className="max-w-[92%]">
-                      <p className="whitespace-pre-wrap text-[17px] leading-relaxed">{b.text}</p>
+                    <div className="group/reply max-w-[92%]">
+                      <p className="whitespace-pre-wrap text-[17px] leading-[1.7]">{b.text}</p>
                       {b.explanation && (
                         <ReplyChips
                           explanation={b.explanation}
@@ -249,14 +305,21 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
               ))}
             </AnimatePresence>
 
-            {busy && <Thinking />}
+            {busy && (
+              <div className="flex items-center gap-2.5">
+                <Thinking />
+                <span className="text-[12px] text-[var(--color-faint)]">
+                  {persona.display_name.split(' ')[0]} is typing
+                </span>
+              </div>
+            )}
             <div ref={endRef} />
           </div>
         </div>
 
         {/* Composer */}
         <div className="border-t border-[var(--color-line)] px-6 py-4">
-          <div className="mx-auto max-w-2xl">
+          <div className="mx-auto max-w-[44rem]">
             <AnimatePresence>
               {needsRollover && !capsule && (
                 <motion.div
@@ -307,9 +370,9 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
               disabled={ctx?.stage === 'block'}
               placeholder={ctx?.stage === 'block' ? 'roll the conversation over first' : ''}
               className="w-full resize-none rounded-xl border border-[var(--color-line)]
-                         bg-[var(--color-surface)] px-4 py-3 text-[15px] leading-relaxed outline-none
+                         bg-[var(--color-surface)] px-4 py-3 text-[16px] leading-relaxed outline-none
                          transition-colors placeholder:text-[var(--color-faint)]
-                         focus:border-[var(--color-faint)] disabled:opacity-50"
+                         focus:border-[var(--color-warm-dim)] disabled:opacity-50"
             />
             <div className="mt-2.5 flex items-center gap-3">
               <Button onClick={send} disabled={!draft.trim() || busy || ctx?.stage === 'block'}>
@@ -327,8 +390,11 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
       </main>
 
       {/* Right: what it remembers. */}
-      <aside className="hidden flex-col gap-4 overflow-y-auto border-l border-[var(--color-line)]
-                        px-5 py-6 lg:flex">
+      <aside
+        className={`flex-col gap-4 overflow-y-auto border-l border-[var(--color-line)] px-5 py-6 ${
+          focus ? 'hidden' : 'hidden lg:flex'
+        }`}
+      >
         <div className="flex items-baseline justify-between">
           <h3 className="text-[13px] text-[var(--color-muted)]">what it remembers</h3>
           <button
@@ -425,7 +491,14 @@ function ReplyChips({
 }) {
   const { memories_used, sources_used, style_violations, attempts } = explanation
   return (
-    <div className="mt-2">
+    // Receded at rest so the conversation reads as a conversation, not an audit log.
+    // Hover on the reply or keyboard focus brings it back, and an open drawer holds it —
+    // the provenance is still one glance away, it just stops shouting under every turn.
+    <div
+      className={`mt-2 transition-opacity duration-200 focus-within:opacity-100 ${
+        open ? 'opacity-100' : 'opacity-35 group-hover/reply:opacity-100'
+      }`}
+    >
       <div className="flex flex-wrap items-center gap-1.5">
         {memories_used.slice(0, 2).map((m) => (
           <Chip key={m.id} tone="warm" title={m.text}>
