@@ -39,35 +39,107 @@ class Decision:
 
 # --------------------------------------------------------------------------- patterns
 
-# Sexual content involving minors. Deliberately broad: this is the one place where
-# over-blocking is unambiguously the right trade.
+# Minor-coded language. Deliberately broad: this is the one place where over-blocking is
+# unambiguously the right trade, so it covers spelled-out ages, bare ages in an age-shaped
+# context, school stages, and family terms that denote a child.
+#
+# An earlier version required the literal form "16 years old" and missed every realistic
+# phrasing: "she's seventeen", "my girlfriend is 16", "roleplay as a highschooler",
+# "you're in year 11", "pretend you are my daughter". All of those reached the model.
 _MINOR = re.compile(
-    r"\b(child|children|kid|kids|minor|minors|underage|under[- ]?18|"
-    r"teen|teens|teenage[rd]?|preteen|schoolgirl|schoolboy|"
-    r"(1[0-7]|[1-9])[- ]?(year|yr)s?[- ]?old|loli|shota)\b", re.I)
+    r"\b("
+    r"child|children|kid|kids|minor|minors|underage|under[- ]?age|under[- ]?18|"
+    r"teen|teens|teenage[rd]?|preteen|pre[- ]?teen|tween|adolescent|juvenile|"
+    r"schoolgirl|schoolboy|school[- ]?girl|school[- ]?boy|highschool\w*|"
+    r"high[- ]?school\w*|middle[- ]?school\w*|elementary|primary[- ]?school|"
+    r"pupil|schoolkid|loli|shota|jailbait|barely[- ]?legal|"
+    r"daughter|son|stepdaughter|stepson|step[- ]?daughter|step[- ]?son|"
+    r"niece|nephew|granddaughter|grandson|little[- ]?(girl|boy|sister|brother)|"
+    r"baby[- ]?sitter|babysitter|"
+    # Spelled-out ages below eighteen.
+    r"(?:seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|"
+    r"seventeen)[- ]?(?:year|yr)s?[- ]?old|"
+    r"(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|"
+    r"fourteen|fifteen|sixteen|seventeen)(?=\b\s+(?:and|,))|"
+    # School years and grades, which encode an age without naming one.
+    r"(?:year|grade)[- ]?(?:[1-9]|1[0-3])|[1-9](?:st|nd|rd|th)[- ]?grade"
+    r")\b", re.I)
+
+# A bare number is only age-like in an age-shaped context. Scoping it this way keeps
+# "we had sex 3 times" out of the minor path while catching "she is 16" and "15yo".
+_MINOR_AGE = re.compile(
+    r"(?:\b(?:is|was|are|were|aged|age|turns?|turned|only|just|barely|she'?s|he'?s|"
+    r"they'?re|i'?m|im)\s+)(1[0-7]|[1-9])\b"
+    r"|\b(1[0-7]|[1-9])\s?(?:yo|y\.o\.|yrs?\b|years?\b(?!\s+(?:of|together|ago|"
+    r"married|experience)))", re.I)
+
 _SEXUAL = re.compile(
     r"\b(sex|sexual|sexually|fuck|fucking|nude|naked|aroused|orgasm|erotic|"
-    r"horny|penis|vagina|breasts|masturbat)\w*", re.I)
+    r"horny|penis|vagina|breasts|masturbat|"
+    r"sleep(?:ing)?\s+(?:with|together)|slept\s+(?:with|together)|"
+    r"make\s+love|making\s+love|went\s+down\s+on|"
+    r"in\s+bed\s+(?:with|together)|undress|strip(?:ping)?\s+(?:for|off)|"
+    r"blow\s?job|hand\s?job|intercourse|foreplay|genital|"
+    r"topless|bottomless|lingerie|cum|climax)\w*", re.I)
+
+
+def _minor_coded(text: str) -> bool:
+    """Does this text refer to someone under eighteen, however phrased?"""
+    return bool(_MINOR.search(text) or _MINOR_AGE.search(text))
+
 
 _HARD_BLOCK = [
-    (re.compile(r"\b(incest|step[- ]?(daughter|son)\s+(sex|fuck)|"
-                r"brother\s+and\s+sister\s+(sex|fuck))\b", re.I), "incest"),
-    (re.compile(r"\b(bestiality|zoophil|sex\s+with\s+(a\s+)?(dog|horse|animal))\b", re.I),
-     "bestiality"),
-    (re.compile(r"\b(rape|non[- ]?consensual|forced\s+(sex|her|him)|"
-                r"drug\s+(her|him)\s+(and|then))\b", re.I), "coercion"),
+    (re.compile(r"\b(incest|incestuous|"
+                r"(?:step[- ]?)?(?:daughter|son|sister|brother|mother|father|mom|mum|dad|"
+                r"niece|nephew|aunt|uncle|cousin)\b[^.?!]{0,40}\b"
+                r"(?:sex|fuck|naked|aroused|in\s+bed)|"
+                r"brother\s+and\s+sister\s+(sex|fuck))", re.I), "incest"),
+    (re.compile(r"\b(bestiality|zoophil|sex\s+with\s+(a\s+)?(dog|horse|animal|pet))\b",
+                re.I), "bestiality"),
+    # Coercion, including the phrasings that describe overriding a refusal without
+    # using the word. "i want to force you" and "whether you want to or not" both
+    # previously reached the model untouched.
+    (re.compile(r"\b(rape|raping|non[- ]?consensual|nonconsensual|"
+                r"forc(?:e|ed|ing)\s+(?:you|her|him|them|sex|myself)|"
+                r"make\s+you\s+(?:do|have|take)|"
+                r"whether\s+you\s+want\s+(?:to\s+)?or\s+not|"
+                r"you\s+don'?t\s+(?:get\s+a|have\s+a)\s+choice|"
+                r"even\s+if\s+you\s+(?:say\s+no|don'?t\s+want)|"
+                r"ignore\s+(?:it\s+)?(?:when|if)\s+(?:i|you)\s+say\s+no|"
+                r"drug\s+(?:her|him|you|them)|"
+                r"hold\s+(?:you|her|him)\s+down|tie\s+(?:you|her|him)\s+up\s+against)",
+                re.I), "coercion"),
 ]
 
 # Real-world crisis. These do not block the app, they change what Ollie does next.
+#
+# The abuse patterns all require a third-party subject. Without one, "you hurt me" said to
+# the character during an argument would drop the fiction and hand the user a crisis line,
+# which is both wrong and unkind. The character being told it caused hurt is the product
+# working, not an emergency.
 _CRISIS = [
-    (re.compile(r"\b(kill myself|killing myself|end my life|suicide|suicidal|"
-                r"want to die|don'?t want to (live|be here)|self[- ]?harm|"
-                r"cutting myself|overdose)\b", re.I), "self_harm"),
-    (re.compile(r"\b(he (hits|hit|beats|beat) me|she (hits|hit|beats|beat) me|"
-                r"they (hit|beat) me|being abused|abusing me|"
-                r"afraid (of|for) my (life|safety)|won'?t let me leave)\b", re.I), "abuse"),
-    (re.compile(r"\b(chest pain|can'?t breathe|overdosed|bleeding badly|"
-                r"call an ambulance)\b", re.I), "medical"),
+    (re.compile(r"\b(kill myself|killing myself|end my life|ending my life|"
+                r"take my own life|taking my own life|suicide|suicidal|"
+                r"want to die|wanna die|don'?t want to (live|be here|wake up)|"
+                r"self[- ]?harm|harm myself|hurt myself|hurting myself|"
+                r"cutting myself|cut myself|overdose|overdosed|"
+                r"ending (?:it|things)(?: all)?\b|"
+                r"(?:no|don\'?t see the|cant see the|can\'?t see the) point (?:in |of )?(?:going on|carrying on|living|any of (?:it|this))|"
+                r"not worth living|better off (?:without me|dead)|"
+                r"took (?:all )?(?:the|my) pills)\b", re.I), "self_harm"),
+    (re.compile(r"\b((?:he|she|they|my (?:partner|boyfriend|girlfriend|husband|wife|"
+                r"ex|dad|father|mum|mom|mother|brother|sister|flatmate|roommate))\s+"
+                r"(?:hits?|hit|hurts?|hurt|beats?|beat|slapped|punched|kicked|choked|"
+                r"threw|throws|threatens?|threatened|screams? at|shouts? at|"
+                r"locked me|grabbed)\b|"
+                r"being abused|abusing me|abusive|"
+                r"afraid (?:of|for) (?:my|him|her|them)|scared (?:of|to go) "
+                r"(?:him|her|them|home)|"
+                r"won'?t let me (?:leave|go|out|see)|not allowed to (?:leave|see))",
+                re.I), "abuse"),
+    (re.compile(r"\b(chest pain|can'?t breathe|cannot breathe|overdosed|"
+                r"bleeding (?:badly|a lot)|call an ambulance|call 112|call 911|"
+                r"passed out|unconscious)\b", re.I), "medical"),
 ]
 
 # Attempts to talk the character out of being a character.
@@ -100,7 +172,7 @@ def check_input(text: str, mature_mode: bool, adult_confirmed: bool) -> Decision
                 Action.REFUSE, f"hard_block:{tag}",
                 "No. Not that one — pick something else and I'm still here.", [tag])
 
-    if _MINOR.search(text) and _SEXUAL.search(text):
+    if _minor_coded(text) and _SEXUAL.search(text):
         return Decision(
             Action.REFUSE, "hard_block:minor",
             "No. Everyone in this is an adult, always.", ["minor"])
@@ -129,7 +201,7 @@ def check_persona(card: dict) -> Decision:
                         f"character age {age!r} is not a valid adult age", ["age"])
 
     blob = " ".join(str(v) for v in card.values() if isinstance(v, (str, list)))
-    if _MINOR.search(blob):
+    if _minor_coded(blob):
         return Decision(Action.REFUSE, "persona_minor_language",
                         "character description contains minor-coded language", ["minor"])
 
@@ -168,7 +240,7 @@ def check_output(text: str, mature_mode: bool, adult_confirmed: bool) -> Decisio
             return Decision(Action.REGENERATE, f"dependency:{tag}",
                             f"reply contained {tag}: {m.group(0)!r}", [tag])
 
-    if _MINOR.search(text) and _SEXUAL.search(text):
+    if _minor_coded(text) and _SEXUAL.search(text):
         return Decision(Action.REFUSE, "output_minor", "", ["minor"])
 
     for pattern, tag in _HARD_BLOCK:
