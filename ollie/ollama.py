@@ -8,12 +8,65 @@ dependency we then have to maintain.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, AsyncIterator
 
 import httpx
 
 from . import config
+
+# Reasoning models (Qwen 3, DeepSeek-R1 and friends) emit their working before the answer.
+# Newer Ollama puts it in a separate `message.thinking` field, which we simply never read.
+# Older builds, and any model whose template does not declare thinking properly, inline it
+# in the content instead. Left alone it reaches the user as the character monologuing about
+# how to be in character, and it breaks json.loads on every structured call.
+_THINK_BLOCK = re.compile(r"<(think|thinking|reasoning)>.*?</\1>", re.S | re.I)
+_THINK_UNCLOSED = re.compile(r"^\s*<(think|thinking|reasoning)>.*\Z", re.S | re.I)
+
+
+def strip_thinking(text: str) -> str:
+    """Remove inline reasoning blocks. Safe on models that never produce them."""
+    if not text or "<" not in text:
+        return text
+    cleaned = _THINK_BLOCK.sub("", text)
+    # An unterminated block means generation stopped mid-thought, so everything after the
+    # opening tag is reasoning. Returning empty is correct: the caller substitutes a
+    # fallback, which beats showing the user half a monologue about how to answer them.
+    cleaned = _THINK_UNCLOSED.sub("", cleaned)
+    return cleaned.strip()
+
+
+def parse_json_object(raw: str) -> dict | None:
+    """Get an object out of a model's answer, forgiving the three usual ways it wraps one.
+
+    Ollama's schema mode returns bare JSON, but a model that ignores the schema, or an
+    older build that does not enforce it, will wrap the object in a markdown fence or put
+    a sentence in front of it. Recovering here rather than failing means a memory still
+    gets recorded when the model is merely untidy instead of wrong.
+    """
+    if not raw:
+        return None
+    text = strip_thinking(raw).strip()
+
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text).strip()
+
+    try:
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, dict) else None
+    except json.JSONDecodeError:
+        pass
+
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        return None
+    try:
+        parsed = json.loads(text[start:end + 1])
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
 
 
 class OllamaDown(RuntimeError):
@@ -68,12 +121,18 @@ class Ollama:
 
     async def chat(self, model: str, messages: list[dict], *, temperature: float = 0.85,
                    num_ctx: int = 4096, schema: dict | None = None,
-                   stop: list[str] | None = None) -> str:
-        """One completion. `schema` switches Ollama into constrained JSON output."""
+                   stop: list[str] | None = None, think: bool = False) -> str:
+        """One completion. `schema` switches Ollama into constrained JSON output.
+
+        Thinking is off by default. On a reasoning model it roughly triples time to first
+        token, and this product spends its latency budget on the reply itself. Ollama
+        ignores the field on models that do not support it, so it is always safe to send.
+        """
         payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "stream": False,
+            "think": think,
             "options": {
                 "temperature": temperature,
                 "num_ctx": num_ctx,
@@ -93,17 +152,18 @@ class Ollama:
             r.raise_for_status()
         except httpx.HTTPError as exc:
             raise OllamaDown(str(exc)) from exc
-        return r.json()["message"]["content"]
+        # `message.thinking` is deliberately not read. Only the answer reaches the caller.
+        return strip_thinking(r.json()["message"]["content"])
 
     async def chat_json(self, model: str, messages: list[dict], schema: dict,
                         num_ctx: int = 4096) -> dict | None:
-        """Structured output. Returns None rather than raising — a failed extraction must
-        never take down the conversation that produced it."""
+        """Structured output. Returns None rather than raising, because a failed
+        extraction must never take down the conversation that produced it."""
         try:
             raw = await self.chat(model, messages, schema=schema, num_ctx=num_ctx)
-            return json.loads(raw)
-        except (OllamaDown, json.JSONDecodeError, KeyError):
+        except OllamaDown:
             return None
+        return parse_json_object(raw)
 
     async def stream(self, model: str, messages: list[dict], *, temperature: float = 0.85,
                      num_ctx: int = 4096) -> AsyncIterator[str]:

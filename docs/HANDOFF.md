@@ -26,6 +26,13 @@ a JSON schema) does not exist, and the interview scoring, candidate generation a
 capsule all silently return nothing. If `ollama --version` shows anything older, upgrade
 before going further. This is the single most consequential version check in the project.
 
+**A note on qwen3 specifically.** It is a reasoning model, so it produces its working before
+its answer. Ollie sends `think: false` on every call and strips any `<think>` block that
+arrives inline anyway, because reasoning left in the content reaches the user as the
+character monologuing about how to be in character, and it breaks JSON parsing on every
+structured call. Both paths are covered by `tests/test_ollama.py`. If you ever see a reply
+that starts by planning what to say, that filter has a gap worth reporting.
+
 **The books are not in the repository and never will be.** They are in-copyright commercial
 titles. Get the `Books/` folder from Coflazo directly over AirDrop or a USB drive. Ollie runs
 perfectly well without it, just with less texture in what the character understands: without
@@ -378,10 +385,46 @@ timings and is usually the fastest way to tell "slow" from "hung".
 
 ---
 
+## 8b. Rehearsing without sitting through onboarding
+
+Reaching the interesting part of the demo through the real flow costs five interview calls
+plus one slow candidate generation every single time. There is a command that writes the
+state directly instead:
+
+```bash
+./.venv/bin/python -m ollie seed --fresh --rollover --model qwen3:14b
+```
+
+That creates a profile (INFJ), a matched character (Ilya, an ENTP, which is what the
+weighting returns for an INFJ), a real eight-message transcript, the six memories that
+conversation would have produced, one open thread, and a continuity capsule. `--rollover`
+closes episode one, so the recall beat has to come from memory rather than from the visible
+transcript.
+
+Restart the server afterwards. The boot screen will offer **back to Ilya** instead of
+**start**, and drop you straight into episode two. Then ask:
+
+> what were we going to do about thursday
+
+The interview is on Thursday at ten, their sister Deniz is driving them, and none of that is
+in episode two's visible transcript. If it answers correctly and in character, the whole
+feasibility argument is demonstrated in one exchange.
+
+Drop `--rollover` to land mid-conversation in episode one instead, which is the better
+starting point if you want to demo pushback or force a live rollover.
+
+`--fresh` wipes existing profiles first. It never touches the book index.
+
+Note that resume is a real feature, not a test hook: the server adopts the most recent
+unfinished session on startup, so closing the browser or restarting never loses a
+conversation.
+
+---
+
 ## 9. Rehearsal, roughly three minutes
 
-Seed a profile beforehand and leave it mid-conversation, so you never do the slow candidate
-generation live.
+Seed the state first with the command above, so you never do the slow candidate generation
+live.
 
 1. **Open on the boot screen.** "This is running entirely on this laptop. That is the model
    it picked for this hardware, and there is no network call after setup." (15s)

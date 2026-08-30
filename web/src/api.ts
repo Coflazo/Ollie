@@ -17,6 +17,12 @@ export type Probe = {
   installed: string[]
   needs_pull: boolean
   suggested_pull: string | null
+  resumable: {
+    persona: Candidate
+    episode: number
+    session_id: string
+    messages: number
+  } | null
 }
 
 export type Question = { id: string; text: string }

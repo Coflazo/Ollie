@@ -109,6 +109,38 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     return ingest_main()
 
 
+def cmd_seed(args: argparse.Namespace) -> int:
+    """Write a mid-conversation demo state so rehearsals skip onboarding."""
+    from . import seed as seeder
+
+    probe = hardware.probe()
+    tier = config.tier_for(probe.ram_gb)
+    store = Store()
+
+    if args.fresh:
+        with store.tx() as db:
+            for table in ("messages", "memories", "memory_sources", "open_threads",
+                          "capsules", "sessions", "personas", "profiles"):
+                db.execute(f"DELETE FROM {table}")
+
+    out = seeder.seed(store, args.model or "seeded", tier.context_cap,
+                      rollover=args.rollover, mature=args.mature)
+
+    print(f"\n  seeded: you are {out['user_type']}, they are {out['persona_name']} "
+          f"({out['type']}), episode {out['episode']}")
+    if args.rollover:
+        print("\n  carried into episode 2:\n")
+        for line in out["carried"].splitlines():
+            print(f"    {line}")
+        print("\n  ask: \"what were we going to do about thursday\"")
+        print("  the answer has to come from memory; it is not in the visible transcript.")
+    else:
+        print("\n  the transcript is loaded. talk to it, or force a rollover to see "
+              "the capsule.")
+    print(f"\n  now run: ./scripts/ollie --model <your-tag>\n")
+    return 0
+
+
 def cmd_reset(args: argparse.Namespace) -> int:
     """Delete conversations and memories. Leaves the book index alone, since rebuilding
     it takes far longer than anything it protects."""
@@ -153,6 +185,15 @@ def main() -> int:
     ingest.add_argument("--books", default=str(config.BOOKS))
     ingest.add_argument("--tier", choices=["a", "all"], default="all")
     ingest.set_defaults(func=cmd_ingest)
+
+    seed = sub.add_parser("seed", help="write a demo state so rehearsals skip onboarding")
+    seed.add_argument("--fresh", action="store_true",
+                      help="wipe existing profiles first")
+    seed.add_argument("--rollover", action="store_true",
+                      help="also close episode 1, so recall must come from memory")
+    seed.add_argument("--mature", action="store_true")
+    seed.add_argument("--model", help="model tag to record on the session")
+    seed.set_defaults(func=cmd_seed)
 
     args = parser.parse_args()
     if not args.cmd:

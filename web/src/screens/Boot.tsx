@@ -1,9 +1,15 @@
 import { motion } from 'motion/react'
 import { useEffect, useState } from 'react'
-import { api, type Probe } from '../api'
+import { api, type Candidate, type Probe } from '../api'
 import { Button, Panel, riseIn } from '../ui'
 
-export function Boot({ onReady }: { onReady: (probe: Probe) => void }) {
+export function Boot({
+  onReady,
+  onResume,
+}: {
+  onReady: (probe: Probe) => void
+  onResume: (probe: Probe, persona: Candidate) => void
+}) {
   const [probe, setProbe] = useState<Probe | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -75,14 +81,39 @@ export function Boot({ onReady }: { onReady: (probe: Probe) => void }) {
       <motion.div
         {...riseIn}
         transition={{ ...riseIn.transition, delay: 0.16 }}
-        className="mt-6 flex items-center gap-4"
+        className="mt-6 flex flex-wrap items-center gap-4"
       >
-        <Button onClick={() => probe && onReady(probe)} disabled={!probe?.model}>
-          start
-        </Button>
-        <p className="text-[12px] text-[var(--color-faint)]">
-          takes about three minutes. you can stop at any point.
-        </p>
+        {/* Resuming leads when there is something to resume. Someone who already has a
+            conversation open almost never wants to start a second one, and making them
+            walk back through onboarding to reach it would be the opposite of a product
+            that claims to remember them. */}
+        {probe?.resumable ? (
+          <>
+            <Button
+              onClick={() => probe && onResume(probe, probe.resumable!.persona)}
+              disabled={!probe.model}
+            >
+              back to {probe.resumable.persona.display_name}
+            </Button>
+            <Button variant="ghost" onClick={() => probe && onReady(probe)}
+                    disabled={!probe.model}>
+              start over
+            </Button>
+            <p className="text-[12px] text-[var(--color-faint)]">
+              episode {probe.resumable.episode}, {probe.resumable.messages}{' '}
+              {probe.resumable.messages === 1 ? 'message' : 'messages'} in
+            </p>
+          </>
+        ) : (
+          <>
+            <Button onClick={() => probe && onReady(probe)} disabled={!probe?.model}>
+              start
+            </Button>
+            <p className="text-[12px] text-[var(--color-faint)]">
+              takes about three minutes. you can stop at any point.
+            </p>
+          </>
+        )}
       </motion.div>
     </div>
   )

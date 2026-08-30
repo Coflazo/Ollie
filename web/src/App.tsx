@@ -36,6 +36,10 @@ export default function App() {
                 setProbe(p)
                 setStage({ name: 'onboarding' })
               }}
+              onResume={(p, persona) => {
+                setProbe(p)
+                setStage({ name: 'chat', persona })
+              }}
             />
           )}
 

@@ -51,6 +51,7 @@ class State:
             "intensity": "moderate", "languages": ["English"],
         }
         self.last_consolidation: dict = {}
+        self.resumable: dict | None = None
 
     @property
     def client(self) -> Ollama:
@@ -89,6 +90,33 @@ class State:
             raise HTTPException(409, "no persona")
         return json.loads(self.store.get("personas", self.persona_id)["card_json"])
 
+    def adopt_latest_session(self) -> dict | None:
+        """Pick up the most recent unfinished conversation on disk.
+
+        Session state lives in memory while the app runs but the record is in SQLite, so
+        without this a restart, or anything written by `ollie seed`, would be invisible.
+        Resuming is also what a person expects from something that claims to remember them.
+        """
+        row = self.store.db.execute(
+            "SELECT s.*, p.card_json FROM sessions s "
+            "JOIN personas p ON p.id = s.persona_id "
+            "WHERE s.ended_at IS NULL ORDER BY s.started_at DESC LIMIT 1").fetchone()
+        if not row:
+            return None
+
+        self.profile_id = row["profile_id"]
+        self.persona_id = row["persona_id"]
+        self.session_id = row["id"]
+
+        profile = self.store.get("profiles", row["profile_id"]) or {}
+        stored = json.loads(profile.get("settings_json") or "{}")
+        self.settings.update({k: v for k, v in stored.items() if k in self.settings})
+
+        card = json.loads(row["card_json"])
+        return {"persona": card, "episode": row["episode_number"],
+                "session_id": row["id"],
+                "messages": len(self.store.messages(row["id"]))}
+
 
 S = State()
 
@@ -125,6 +153,7 @@ async def setup_probe(model: str | None = None) -> dict:
         "installed": S.installed,
         "needs_pull": alive and chosen is None,
         "suggested_pull": S.tier.candidates[0] if chosen is None else None,
+        "resumable": S.resumable,
     }
 
 
@@ -409,6 +438,8 @@ async def startup() -> None:
     from . import graph
 
     config.FLAGS.graphify = graph.available()
+
+    S.resumable = S.adopt_latest_session()
 
     if S.model:
         return  # the launcher already picked one; do not spend a round trip repeating it
