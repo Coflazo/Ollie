@@ -17,10 +17,21 @@ export function Boot({ onReady }: { onReady: (probe: Probe) => void }) {
   return (
     <div className="mx-auto flex min-h-full max-w-2xl flex-col justify-center px-6 py-16">
       <motion.div {...riseIn}>
-        <h1 className="text-3xl font-medium tracking-tight">Ollie</h1>
-        <p className="mt-3 max-w-md text-[15px] leading-relaxed text-[var(--color-muted)]">
-          A dating simulator that runs on this machine. The conversation, the memory and the model
-          all stay here. Nothing is uploaded, and there is no account.
+        {/* Scale contrast carries the hierarchy here: the name is roughly 7x the body,
+            which is what makes the screen read as an opening rather than a form. */}
+        <h1
+          className="font-display font-medium leading-[0.85]"
+          style={{ fontSize: 'clamp(3.5rem, 11vw, 7rem)', letterSpacing: '-0.035em' }}
+        >
+          Ollie
+        </h1>
+        <p className="mt-6 max-w-[46ch] text-[15px] leading-relaxed text-[var(--color-muted)]">
+          A dating simulator that runs on this machine. It interviews you, works out your type,
+          and becomes someone who will disagree with you about things.
+        </p>
+        <p className="mt-2 max-w-[46ch] text-[13px] leading-relaxed text-[var(--color-faint)]">
+          The conversation, the memory and the model all stay here. Nothing is uploaded and there
+          is no account.
         </p>
       </motion.div>
 
