@@ -58,7 +58,9 @@ def _load() -> ctypes.CDLL | None:
         ctypes.c_char_p,                  # search texts, newline separated
         ctypes.POINTER(ctypes.c_int32),   # 5 per record
         ctypes.POINTER(ctypes.c_double),  # 2 per record
-        ctypes.c_int32,
+        ctypes.c_int32,                   # record count
+        ctypes.c_int32,                   # length of the int array, so it can be checked
+        ctypes.c_int32,                   # length of the double array
         ctypes.POINTER(ctypes.c_double),  # out_scores
     ]
 
@@ -115,8 +117,9 @@ def py_rank(lexical: list[float], category_hit: list[int], lengths: list[int],
 def py_score_memories(terms: list[str], texts: list[str], ints: list[int],
                       doubles: list[float]) -> list[float]:
     """Reference implementation. `ints` is 5 per record, `doubles` is 2 per record."""
+    n = min(len(texts), len(ints) // 5, len(doubles) // 2)
     out: list[float] = []
-    for i, haystack in enumerate(texts):
+    for i, haystack in enumerate(texts[:n]):
         overlap = sum(1 for t in terms if t and t in haystack)
         importance, locked, commitment, sensitivity, confirm = ints[i * 5:i * 5 + 5]
         confidence, age_days = doubles[i * 2:i * 2 + 2]
@@ -189,20 +192,28 @@ def score_memories(terms: list[str], texts: list[str], ints: list[int],
     because marshalling through ctypes cost more than it saved. Records must contain no
     newline in their search text; the store guarantees that.
     """
-    n = len(texts)
-    if n == 0:
+    # The record count is whatever all three structures agree on. Trusting len(texts)
+    # alone let a mismatched call read past the end of the numeric arrays in C++.
+    n = min(len(texts), len(ints) // 5, len(doubles) // 2)
+    if n <= 0:
         return []
     lib = _load()
     if lib is None:
         return py_score_memories(terms, texts, ints, doubles)
 
+    # Newline is the record separator inside the blobs, so a newline inside a value would
+    # silently shift every following record onto the wrong numbers. Strip here, at the
+    # boundary that owns the encoding, rather than trusting each caller to remember.
+    def blob(items: list[str]) -> bytes:
+        return "\n".join(i.replace("\n", " ").replace("\r", " ") for i in items).encode(
+            "utf-8", "ignore")
+
     out = (ctypes.c_double * n)()
     lib.ollie_score_memories(
-        "\n".join(terms).encode("utf-8", "ignore"),
-        "\n".join(texts).encode("utf-8", "ignore"),
+        blob(terms), blob(texts),
         (ctypes.c_int32 * len(ints))(*ints),
         (ctypes.c_double * len(doubles))(*doubles),
-        n, out,
+        n, len(ints), len(doubles), out,
     )
     return [float(out[i]) for i in range(n)]
 

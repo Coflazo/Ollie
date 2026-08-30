@@ -251,8 +251,19 @@ int32_t ollie_rank(const double* lexical, const int32_t* category_hit,
 //            (sensitivity: 0 normal, 1 personal, 2 special category)
 //   doubles: 2 per record - confidence, age in days
 int32_t ollie_score_memories(const char* terms, const char* texts, const int32_t* ints,
-                             const double* doubles, int32_t n, double* out_scores) {
+                             const double* doubles, int32_t n, int32_t n_ints,
+                             int32_t n_doubles, double* out_scores) {
     if (n <= 0 || !out_scores || !ints || !doubles) return 0;
+
+    // Never trust `n` alone. The caller supplies three parallel structures and one count,
+    // and this function reads `ints[i*5 + 4]` and `doubles[i*2 + 1]` for every i below n.
+    // If the arrays are shorter than n implies, that is an out-of-bounds heap read: not a
+    // wrong score, memory corruption. The Python twin would raise IndexError and stop,
+    // so the native path failing silently would also break the parity contract, which
+    // says the two behave the same. Clamp to what was actually supplied.
+    if (n_ints / 5 < n) n = n_ints / 5;
+    if (n_doubles / 2 < n) n = n_doubles / 2;
+    if (n <= 0) return 0;
 
     auto split = [](const char* blob) {
         std::vector<std::string> out;

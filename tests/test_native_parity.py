@@ -165,3 +165,52 @@ def test_memory_scoring_parity_on_random_input(seed: int) -> None:
 def test_physical_ram_is_plausible() -> None:
     ram = loader.physical_ram()
     assert ram == 0 or 1e9 < ram < 2e12, f"implausible RAM reading: {ram}"
+
+
+# --------------------------------------------------- ragged and hostile input
+
+def test_ragged_arrays_do_not_read_out_of_bounds() -> None:
+    """The native function reads ints[i*5+4] and doubles[i*2+1] for every i below the
+    record count. It used to take that count on trust, so a caller whose numeric arrays
+    were shorter than the text list caused an out-of-bounds heap read: not a wrong score,
+    memory corruption. Both paths now clamp to what all three structures agree on.
+    """
+    terms = ["climb"]
+    texts = ["a climb", "b", "c", "d"]   # implies four records
+    ints = [3, 0, 0, 0, 0, 3, 0, 0, 0, 0]  # holds two
+    doubles = [0.9, 1.0, 0.9, 1.0]         # holds two
+
+    native_scores = loader.score_memories(terms, texts, ints, doubles)
+    python_scores = loader.py_score_memories(terms, texts, ints, doubles)
+
+    assert len(native_scores) == 2, native_scores
+    assert len(python_scores) == 2, python_scores
+    for a, b in zip(native_scores, python_scores):
+        assert abs(a - b) < 1e-9
+
+
+def test_a_newline_in_a_value_does_not_shift_later_records() -> None:
+    """Newline is the record separator inside the blob passed to C++, so an unescaped one
+    in a value silently moved every following record onto the wrong numbers. The binding
+    strips them now, at the boundary that owns the encoding.
+    """
+    terms = ["climb"]
+    texts = ["a climb", "has\na newline", "c"]
+    ints = [5, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0]
+    doubles = [0.9, 1.0, 0.1, 1.0, 0.5, 1.0]
+
+    native_scores = loader.score_memories(terms, texts, ints, doubles)
+    python_scores = loader.py_score_memories(terms, texts, ints, doubles)
+
+    assert len(native_scores) == 3
+    for a, b in zip(native_scores, python_scores):
+        assert abs(a - b) < 1e-9
+    # The record that actually matches the query must still rank first.
+    assert native_scores[0] == max(native_scores)
+
+
+def test_empty_and_degenerate_memory_input() -> None:
+    assert loader.score_memories([], [], [], []) == []
+    assert loader.score_memories(["x"], [], [], []) == []
+    # Texts present but no numbers at all: nothing can be scored.
+    assert loader.score_memories(["x"], ["a", "b"], [], []) == []
