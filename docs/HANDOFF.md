@@ -448,7 +448,7 @@ live.
 5. **Open "why this reply".** Show the memories and books that fed it. (20s)
 6. **Force the rollover, read the capsule, start episode two, ask about the earlier
    detail.** It remembers. (40s)
-7. **Close on the repository.** 339 tests, no network needed, C++ with a Python twin and a
+7. **Close on the repository.** 418 tests, no network needed, C++ with a Python twin and a
    randomised parity test, and a CI job that refuses to let a book into the repo. (20s)
 
 For the one-minute video, cut steps 4 and 6 only. Pushback and recall are the two things
