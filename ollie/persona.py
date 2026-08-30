@@ -15,7 +15,9 @@ Three stages:
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
@@ -407,6 +409,48 @@ def _fallback_card(index: int) -> dict:
                             "boundaries": ["will not be spoken to with contempt"]}, index)
 
 
+# ----------------------------------------------------------------- the system prompt
+
+SYSTEM_PROMPT_PATH = config.PROMPTS / "OLLIE_SYSTEM.md"
+_TYPE_HEADING = re.compile(r"^### ([A-Z]{4})\s*$", re.M)
+
+
+@lru_cache(maxsize=32)
+def system_prompt(type_code: str) -> str:
+    """The one system prompt, with only the active type's section included.
+
+    `prompts/OLLIE_SYSTEM.md` is the single authoritative document: the contract, the
+    voice, all sixteen types and the whole library. It is deliberately one file, because
+    a character split across five files is a character nobody can read end to end.
+
+    It is not sent whole. All sixteen type sections run to roughly four thousand tokens,
+    and fifteen of them describe someone the user is not talking to. Prompt evaluation is
+    the dominant cost on modest hardware, so this drops the fifteen and keeps the one.
+    Everything else in the document is sent verbatim.
+    """
+    text = SYSTEM_PROMPT_PATH.read_text()
+    code = type_code.upper() if types16.valid(type_code) else ""
+
+    matches = list(_TYPE_HEADING.finditer(text))
+    if not matches:
+        return text
+
+    keep_start = keep_end = None
+    for i, m in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else None
+        if m.group(1) == code:
+            keep_start, keep_end = m.start(), end
+
+    first, last_end = matches[0].start(), len(text)
+    if matches:
+        # The block of type sections ends where the next second-level heading begins.
+        tail = re.search(r"^\*\*These are cognitive shapes", text[first:], re.M)
+        last_end = first + tail.start() if tail else len(text)
+
+    selected = text[keep_start:keep_end] if keep_start is not None else ""
+    return text[:first] + selected + text[last_end:]
+
+
 # -------------------------------------------------------------------- prompt compiler
 
 DEFAULT_STATE = {
@@ -425,11 +469,10 @@ def compile_prompt(persona: dict, *, stage: str, state: dict, episode: int,
     The hash is what makes a bad reply reproducible: it pins the exact prompt text that
     produced it, so an evaluation failure can be traced to a template change.
     """
-    immutable = (config.PROMPTS / "00_immutable.md").read_text()
-    core = (config.PROMPTS / "10_ollie_core.md").read_text()
+    system = system_prompt(str(persona.get("type", "")))
 
     text = _env.get_template("persona_runtime.j2").render(
-        immutable=immutable, core=core, persona=persona, stage=stage, state=state,
+        system=system, persona=persona, stage=stage, state=state,
         episode=episode, user_profile=user_profile, memories=memories, sources=sources,
         recent=recent, open_threads=open_threads, boundaries=boundaries,
         content_mode=content_mode, intensity=intensity,

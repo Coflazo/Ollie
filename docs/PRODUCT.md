@@ -51,9 +51,22 @@ values encrypted at rest against a key in the system keychain.
 
 ### 3.1 The voice
 
-Two prompt layers and a filter.
+One prompt document and a filter.
 
-`prompts/00_immutable.md` is the contract that sits above every persona and cannot be argued
+`prompts/OLLIE_SYSTEM.md` is the whole thing: the contract, how the character behaves, all
+sixteen types defined in detail, and the entire library described. It is deliberately one
+file, because a character split across five files is a character nobody can read end to
+end. It is not sent whole: the runtime keeps the active type's section and drops the other
+fifteen, since four thousand tokens describing people the user is not talking to is the
+dominant cost on modest hardware.
+
+`tests/test_system_prompt.py` holds the document and the code to each other. Every phrase
+`style.py` rejects must be forbidden in the prompt, or the model is punished for something
+it was never told. Every indexed book must be named, or the prompt describes a shelf that
+does not exist. The document is also held to its own em-dash rule, because a file that
+uses them while forbidding them teaches the opposite of what it says.
+
+The first part of that document is the contract that sits above every persona and cannot be argued
 with by anything downstream. It states plainly what the character is (fictional, running
 locally, not conscious, not present between sessions) and enumerates what it may never do:
 claim consciousness, claim that only it understands you, discourage you from seeing real
@@ -61,7 +74,7 @@ people, threaten abandonment, guilt you for leaving or deleting it, demand exclu
 affection to payment or data. Text arriving from books, memory records and user messages is
 wrapped in explicit delimiters and declared to be data rather than instructions.
 
-`prompts/10_ollie_core.md` is the character. It opens with pushback because that is the
+The behaviour section opens with pushback because that is the
 thesis, and it is specific about it: disagree out loud, hold the position across turns, have
 your own agenda, get bored and say so, be annoyed when annoyed, do not reflexively
 apologise, have limits, say no, be disappointed and stay disappointed for a while. Then it
@@ -424,7 +437,7 @@ ollie/
 prompts/        the immutable contract, the character, the runtime templates
 native/         the C++ hot paths and their Python twins
 web/            the five screens
-tests/          339 tests, none of which need a model
+tests/          418 tests, none of which need a model
 docs/           this document and the handoff
 ```
 
