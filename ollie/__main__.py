@@ -13,7 +13,7 @@ import threading
 import webbrowser
 
 from . import config, hardware
-from .ollama import Ollama, OllamaDown
+from .ollama import Ollama, OllamaDown, select_model
 from .store import Store
 
 DEFAULT_PORT = 8765
@@ -29,6 +29,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
     print(f"\n  Ollie\n  {hardware.describe(probe, tier)}")
 
     async def preflight() -> str | None:
+        """Uses its own client and closes it. The server's client is built later, inside
+        uvicorn's loop, because an httpx pool cannot outlive the loop it was made in."""
         client = Ollama()
         try:
             version = await client.version()
@@ -36,18 +38,23 @@ def cmd_serve(args: argparse.Namespace) -> int:
             print("\n  Ollama is not running. Start it and try again:\n"
                   "      ollama serve\n", file=sys.stderr)
             return None
-        model = await api.S.resolve_model(args.model)
-        print(f"  ollama {version}")
-        if model:
-            print(f"  model  {model}")
-        else:
-            print(f"  no suitable model installed. closest fit for this machine:\n"
-                  f"      ollama pull {tier.candidates[0]}")
-        await client.aclose()
-        return model
+        try:
+            model, _installed = await select_model(client, tier, args.model)
+            print(f"  ollama {version}")
+            if model:
+                print(f"  model  {model}")
+            else:
+                print(f"  no suitable model installed. closest fit for this machine:\n"
+                      f"      ollama pull {tier.candidates[0]}")
+            return model
+        finally:
+            await client.aclose()
 
-    if asyncio.run(preflight()) is None and not args.force:
+    chosen = asyncio.run(preflight())
+    if chosen is None and not args.force:
         return 1
+    # Hand the decision to the app without touching its client.
+    api.S.model = chosen or args.model
 
     stats = Store().corpus_stats()
     print(f"  corpus {stats['sources']} sources, {stats['chunks']} passages")

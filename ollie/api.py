@@ -33,7 +33,7 @@ class State:
 
     def __init__(self) -> None:
         self.store = Store()
-        self.client = Ollama()
+        self._client: Ollama | None = None
         self.probe = hardware.probe()
         self.tier = config.tier_for(self.probe.ram_gb)
         self.model: str | None = None
@@ -51,6 +51,19 @@ class State:
             "intensity": "moderate", "languages": ["English"],
         }
         self.last_consolidation: dict = {}
+
+    @property
+    def client(self) -> Ollama:
+        """Built on first use, inside the loop that will actually use it.
+
+        httpx binds its connection pool to the running event loop. Constructing the client
+        at import time and then touching it from a throwaway `asyncio.run` during startup
+        leaves the pool holding a closed loop, and every later request fails with
+        "Event loop is closed".
+        """
+        if self._client is None:
+            self._client = Ollama()
+        return self._client
 
     async def resolve_model(self, override: str | None = None) -> str | None:
         self.model, self.installed = await select_model(self.client, self.tier, override)
@@ -350,7 +363,11 @@ async def marketplace_accept(body: dict) -> dict:
 
 WEB_DIST = config.ROOT / "web" / "dist"
 if WEB_DIST.exists():
-    app.mount("/assets", StaticFiles(directory=WEB_DIST / "assets"), name="assets")
+    # Mounted explicitly rather than serving the whole tree at "/", so a stray file in
+    # dist can never shadow a /v1 route.
+    for sub in ("assets", "fonts"):
+        if (WEB_DIST / sub).is_dir():
+            app.mount(f"/{sub}", StaticFiles(directory=WEB_DIST / sub), name=sub)
 
     @app.get("/")
     async def index() -> FileResponse:
@@ -360,6 +377,25 @@ if WEB_DIST.exists():
 @app.on_event("startup")
 async def startup() -> None:
     config.ensure_dirs()
+
+    # Report what actually loaded rather than what was configured. The health endpoint is
+    # the only place a user can see whether the native path or the fallback is live.
+    import sys
+
+    sys.path.insert(0, str(config.NATIVE))
+    try:
+        import loader as native
+
+        config.FLAGS.native = native.available()
+    except ImportError:
+        config.FLAGS.native = False
+
+    from . import graph
+
+    config.FLAGS.graphify = graph.available()
+
+    if S.model:
+        return  # the launcher already picked one; do not spend a round trip repeating it
     try:
         await S.resolve_model()
     except OllamaDown:
