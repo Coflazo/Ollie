@@ -28,6 +28,21 @@ def cmd_serve(args: argparse.Namespace) -> int:
     tier = config.tier_for(probe.ram_gb)
     print(f"\n  Ollie\n  {hardware.describe(probe, tier)}")
 
+    if args.demo:
+        # Walk the whole product at full speed on hardware that cannot run a model in
+        # under five minutes. Nothing else is stubbed.
+        api.S.use_mock = True
+        api.S.model = "demo:scripted"
+        stats = Store().corpus_stats()
+        print("  model  scripted (demo mode: no inference, everything else is real)")
+        print(f"  corpus {stats['sources']} sources, {stats['chunks']} passages")
+        url = f"http://127.0.0.1:{args.port}"
+        print(f"  ready  {url}\n")
+        if not args.no_browser:
+            threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+        uvicorn.run(api.app, host="127.0.0.1", port=args.port, log_level="warning")
+        return 0
+
     async def preflight() -> str | None:
         """Uses its own client and closes it. The server's client is built later, inside
         uvicorn's loop, because an httpx pool cannot outlive the loop it was made in."""
@@ -168,6 +183,8 @@ def main() -> int:
     serve.add_argument("--no-browser", action="store_true")
     serve.add_argument("--force", action="store_true",
                        help="start even if Ollama is unreachable")
+    serve.add_argument("--demo", action="store_true",
+                       help="scripted replies instead of a model; everything else real")
     serve.set_defaults(func=cmd_serve)
 
     sub.add_parser("probe", help="print hardware and tier").set_defaults(func=cmd_probe)

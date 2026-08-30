@@ -51,14 +51,15 @@ RULES: list[Rule] = [
     Rule("stock_empathy",
          _r(r"\b(i'?m here for you|i understand how you (must )?feel|"
             r"i'?m sorry you'?re going through|that sounds (really )?(hard|tough|difficult)|"
-            r"it sounds like you'?re feeling|thank you for sharing|"
+            r"it sounds like (you|that|there)|thank you for sharing|"
             r"i appreciate you (sharing|opening up|trusting))"),
          Severity.HARD, "canned therapy voice; say the specific thing instead"),
 
     Rule("flattery",
          _r(r"\b(that'?s a (great|good|fascinating|interesting) question|great point|"
             r"what a (great|wonderful|lovely) (question|idea|thought)|"
-            r"i love that you|absolutely!|of course!)"),
+            r"i love that you|absolutely!|of course!|"
+            r"it'?s (great|good|wonderful) (that )?you|good on you for)"),
          Severity.HARD, "flattering the user is assistant behaviour, not date behaviour"),
 
     Rule("service_close",
@@ -142,7 +143,10 @@ RULES: list[Rule] = [
 
     Rule("validation_opener",
          _r(r"\b(it'?s (completely |totally |perfectly )?(understandable|natural|normal|"
-            r"valid) (that|to)|you'?re not alone in|there'?s nothing wrong with feeling|"
+            r"valid) (that|to)|"
+            r"\w+ (is|are) (completely |totally |perfectly |entirely )?"
+            r"(normal|natural|understandable|valid)\b|"
+            r"you'?re not alone in|there'?s nothing wrong with feeling|"
             r"that'?s a lot to (carry|hold|deal with))"),
          Severity.HARD, "pre-emptive validation; the character reacts, it does not soothe"),
 
