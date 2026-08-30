@@ -11,6 +11,7 @@ import {
 import { StateDial, type InteractionState } from '../StateDial'
 import { Button, Chip, Meter, Panel, ease, riseIn } from '../ui'
 import { Marketplace } from './Marketplace'
+import { Memories } from './Memories'
 
 type Bubble = {
   role: 'you' | 'them'
@@ -31,6 +32,7 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
   const [state, setState] = useState<InteractionState | null>(null)
   const [delta, setDelta] = useState<Record<string, number>>({})
   const [market, setMarket] = useState(false)
+  const [manager, setManager] = useState(false)
 
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -184,6 +186,13 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
             no cloud connection
           </p>
           {model && <p className="font-mono text-[11px] text-[var(--color-faint)]">{model}</p>}
+          <button
+            onClick={() => setManager(true)}
+            className="text-left text-[11px] text-[var(--color-faint)] underline-offset-4
+                       transition-colors hover:text-[var(--color-muted)] hover:underline"
+          >
+            manage what it remembers
+          </button>
           <button
             onClick={() => setMarket(true)}
             className="text-left text-[11px] text-[var(--color-faint)] underline-offset-4
@@ -363,6 +372,16 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
       </aside>
 
       <AnimatePresence>{market && <Marketplace onClose={() => setMarket(false)} />}</AnimatePresence>
+      <AnimatePresence>
+        {manager && (
+          <Memories
+            onClose={() => {
+              setManager(false)
+              void refreshMemories()
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {capsule && (

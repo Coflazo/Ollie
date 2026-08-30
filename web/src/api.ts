@@ -115,7 +115,9 @@ export type MarketPreview = {
     score: number
     level: 'low' | 'medium' | 'high'
     quasi_identifiers: { kind: string; text: string }[]
-    residual_direct: { kind: string; text: string }[]
+    // What redaction took out, which is the pipeline working rather than a hazard. The
+    // score comes from the quasi-identifiers that survive it, not from these.
+    removed_direct: Record<string, number>
     note: string
   }
   quote_eur: number
@@ -193,13 +195,24 @@ export const api = {
       messages: { id: string; role: string; content: string; meta: Record<string, unknown> }[]
     }>('/v1/sessions/messages'),
 
-  memories: () =>
-    request<{ memories: MemoryRecord[]; threads: { id: string; title: string }[] }>('/v1/memories'),
+  memories: (provenance = false) =>
+    request<{ memories: MemoryRecord[]; threads: { id: string; title: string }[] }>(
+      `/v1/memories${provenance ? '?provenance=true' : ''}`,
+    ),
 
   forget: (id: string) => request<{ ok: boolean }>(`/v1/memories/${id}`, { method: 'DELETE' }),
 
   lock: (id: string, lock: boolean) =>
-    request<{ ok: boolean }>(`/v1/memories/${id}?lock=${lock}`, { method: 'PATCH' }),
+    request<{ ok: boolean }>(`/v1/memories/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ lock }),
+    }),
+
+  correctMemory: (id: string, value: string) =>
+    request<{ ok: boolean; replaced_by: string }>(`/v1/memories/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ value }),
+    }),
 
   draftCapsule: () => post<{ capsule_id: string; capsule: Capsule }>('/v1/sessions/rollover/draft'),
 

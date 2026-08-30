@@ -114,6 +114,61 @@ RULES: list[Rule] = [
     Rule("rule_of_three",
          _r(r"\b\w+, \w+,? and \w+\.\s*$"),
          Severity.SOFT, "the rule-of-three list ending"),
+
+    # --- patterns that only show up on larger models -------------------------------
+    #
+    # The rules above were tuned against a 3B model. A 14B is more fluent, which mostly
+    # means it is better at sounding like a well-trained assistant: it formats, it
+    # structures, it performs curiosity, and it gives advice nobody asked for. None of
+    # these appeared often enough on the small model to be worth a rule; all of them are
+    # near-certain on a large one.
+
+    Rule("markdown_formatting",
+         re.compile(r"(^|\n)\s*(#{1,6}\s|[-*+]\s+\S|\d+\.\s+\S)|\*\*\S"),
+         Severity.HARD,
+         "bullet points, headers or bold in a chat message; people texting do not format"),
+
+    Rule("performed_curiosity",
+         _r(r"\b(i'?m (curious|wondering)(,| about| what| how| if)|"
+            r"can i ask you something|if you don'?t mind me asking|"
+            r"i'?d love to (hear|know) more)"),
+         Severity.HARD, "curiosity announced instead of shown"),
+
+    Rule("unrequested_advice",
+         _r(r"\b(have you (considered|thought about|tried)|it might be worth|"
+            r"one thing to keep in mind|what (i'?d|i would) suggest|"
+            r"a good (first )?step (would be|is)|my advice would be)"),
+         Severity.HARD, "advice nobody asked for, in the register of a self-help book"),
+
+    Rule("validation_opener",
+         _r(r"\b(it'?s (completely |totally |perfectly )?(understandable|natural|normal|"
+            r"valid) (that|to)|you'?re not alone in|there'?s nothing wrong with feeling|"
+            r"that'?s a lot to (carry|hold|deal with))"),
+         Severity.HARD, "pre-emptive validation; the character reacts, it does not soothe"),
+
+    Rule("reflective_listening",
+         _r(r"\b(what i'?m hearing is|if i'?m understanding (you )?correctly|"
+            r"let me make sure i understand|so what you'?re telling me)"),
+         Severity.HARD, "counselling-textbook reflection"),
+
+    # The trailing comma is load-bearing. Without it this fires on "that said nothing to
+    # me", which is the character being blunt rather than the model writing an essay.
+    Rule("essay_connectives",
+         _r(r"(^|\n)\s*(with that (being )?said,|that said,|first and foremost|"
+            r"more importantly,|on a deeper level|in many ways,|ultimately,)"),
+         Severity.HARD, "essay scaffolding in a text message"),
+
+    # No \b after the alternation: "remember," ends on punctuation, and a word boundary
+    # cannot exist between a comma and a space, so requiring one matched nothing.
+    Rule("aphorism_close",
+         _r(r"\b(remember(,| that)|at the end of the day|the (important|main) thing is|"
+            r"what matters (most )?is)[^.?!]{0,80}[.?!]\s*$"),
+         Severity.HARD, "closing on a fridge magnet"),
+
+    Rule("emoji",
+         re.compile(
+             "[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U0001F1E6-\U0001F1FF]"),
+         Severity.SOFT, "emoji; the character types in words"),
 ]
 
 # Applied when a SOFT rule fires. Order matters: stage directions first, because removing
@@ -122,6 +177,8 @@ _SOFT_FIXES: list[tuple[re.Pattern[str], str]] = [
     (next(r.pattern for r in RULES if r.name == "stage_direction"), ""),
     (_r(r"^(ah|oh|well|hmm),\s+"), ""),
     (re.compile(r"\s*—\s*"), ", "),
+    (re.compile("[\U0001F300-\U0001FAFF\U00002600-\U000027BF"
+                "\U0001F1E6-\U0001F1FF]"), ""),
 ]
 
 

@@ -84,6 +84,76 @@ def test_question_every_single_turn_is_rejected() -> None:
     assert any(v.rule == "question_every_turn" for v in result.violations)
 
 
+# --------------------------------------------------- patterns from larger models
+
+LARGE_MODEL_ISMS = [
+    "here's what i'd do:\n- talk to her\n- then sleep on it",
+    "## What I think\n\nyou should call her.",
+    "**Honestly**, that's a lot.",
+    "1. call her\n2. apologise",
+    "i'm curious what made you say that.",
+    "i'd love to hear more about that.",
+    "have you considered just telling her?",
+    "it might be worth writing it down first.",
+    "one thing to keep in mind is that people forget.",
+    "it's completely understandable that you feel that way.",
+    "you're not alone in feeling like that.",
+    "that's a lot to carry on your own.",
+    "what i'm hearing is that you felt dismissed.",
+    "let me make sure i understand you.",
+    "That said, you did send it.\n",
+    "First and foremost, you turned up.\n",
+    "remember, you did the hard part.",
+    "at the end of the day, it's your call.",
+]
+
+
+@pytest.mark.parametrize("text", LARGE_MODEL_ISMS)
+def test_larger_model_patterns_are_caught(text: str) -> None:
+    """These barely appeared on a 3B and are near-certain on a 14B. A more fluent model is
+    mostly better at sounding like a well-trained assistant."""
+    assert style.check(text).violations, f"missed: {text!r}"
+
+
+BLUNT_BUT_FINE = [
+    "no. call her.",
+    "you did the hard part. that's just true.",
+    "i remember when you said the opposite of that.",
+    "that said nothing to me, try again.",
+    "ten in the morning. ok.",
+    "she said 3 things and none of them were true.",
+    "you're doing the thing where you ask me what you already decided.",
+    "hm. what's the actual worry.",
+    "i don't know. genuinely.",
+    "right. and then what.",
+    "the mug. the chipped one. you kept turning it away.",
+    "i'd tell you but you'd argue with me about it.",
+]
+
+
+@pytest.mark.parametrize("text", BLUNT_BUT_FINE)
+def test_new_rules_do_not_flag_in_character_text(text: str) -> None:
+    """The false-positive direction is the one that matters. A filter that rejects blunt,
+    specific, unhelpful writing would sand the character into the voice it exists to
+    prevent."""
+    result = style.check(text)
+    assert not result.needs_regen, (
+        f"false positive on {text!r} -> {[v.rule for v in result.violations]}")
+
+
+def test_emoji_is_stripped_rather_than_regenerated() -> None:
+    result = style.check("fine 🙂")
+    assert not result.needs_regen
+    assert "🙂" not in result.text
+
+
+def test_markdown_is_a_hard_rejection() -> None:
+    """A bulleted list is not a repair job. The whole shape of the reply is wrong."""
+    result = style.check("options:\n- one\n- two")
+    assert result.needs_regen
+    assert any(v.rule == "markdown_formatting" for v in result.violations)
+
+
 def test_question_ratio() -> None:
     assert style.question_ratio([]) == 0.0
     assert style.question_ratio(["a?", "b."]) == 0.5

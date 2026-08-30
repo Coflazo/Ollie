@@ -25,22 +25,28 @@ class Span:
     text: str
 
 
-# Ordered by specificity: the first pattern to claim a span wins, so IBAN beats the
-# generic long-number rule and email beats the URL rule.
+# Order is precedence: the first pattern to claim a region wins, and later patterns cannot
+# overlap it. Specific beats general, which matters most among the numeric patterns.
+#
+# `phone` is deliberately last of those. It is the loosest rule here, matching two or three
+# runs of digits with almost any separator, so placed earlier it swallows card numbers,
+# coordinates and dates and reports them all as phone numbers. They still get redacted
+# either way, but the user is told the wrong thing about their own data, and a risk report
+# that miscounts what it found is not worth much.
 PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("email", re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]{2,}\b")),
-    ("iban", re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b")),
-    ("phone", re.compile(r"(?<![\w.])(?:\+\d{1,3}[\s.-]?)?(?:\(\d{1,4}\)[\s.-]?)?"
-                         r"\d{2,4}[\s.-]?\d{2,4}[\s.-]?\d{2,4}(?![\w.])")),
-    ("ipv4", re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")),
     ("url", re.compile(r"https?://[^\s)>\]]+")),
-    ("handle", re.compile(r"(?<![\w@])@[A-Za-z][\w.]{2,29}\b")),
-    ("postcode_nl", re.compile(r"\b\d{4}\s?[A-Z]{2}\b")),
-    ("postcode_uk", re.compile(r"\b[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}\b")),
+    ("iban", re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b")),
     ("coordinates", re.compile(r"-?\d{1,3}\.\d{4,},\s*-?\d{1,3}\.\d{4,}")),
     ("card", re.compile(r"\b(?:\d{4}[\s-]?){3}\d{4}\b")),
+    ("ipv4", re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")),
     ("date_exact", re.compile(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b")),
+    ("postcode_uk", re.compile(r"\b[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}\b")),
+    ("postcode_nl", re.compile(r"\b\d{4}\s?[A-Z]{2}\b")),
+    ("handle", re.compile(r"(?<![\w@])@[A-Za-z][\w.]{2,29}\b")),
     ("age_exact", re.compile(r"\b(?:I'?m|I am|aged)\s+([2-9]\d)\b", re.I)),
+    ("phone", re.compile(r"(?<![\w.])(?:\+\d{1,3}[\s.-]?)?(?:\(\d{1,4}\)[\s.-]?)?"
+                         r"\d{2,4}[\s.-]?\d{2,4}[\s.-]?\d{2,4}(?![\w.])")),
 ]
 
 # Quasi-identifiers. These are not redacted automatically, because stripping every
@@ -116,18 +122,39 @@ def redact(text: str, extra_names: list[str] | None = None) -> tuple[str, list[S
 
 
 def linkability(text: str, spans: list[Span]) -> dict:
-    """A blunt, explainable risk estimate. Not a guarantee, and labelled as such."""
+    """How identifiable the text remains *after* the direct identifiers are removed.
+
+    Two corrections to the obvious version of this.
+
+    It no longer rescans. The caller has already run the expensive pass and hands the
+    spans in; doing it twice cost 25ms per export on a 400-turn transcript for nothing.
+
+    More importantly, the risk is driven by what survives redaction, not by what was
+    caught. An email address that has been replaced with a token is not residual risk, it
+    is the pipeline working. What actually re-identifies someone is the combination of
+    things redaction does not touch: a named university, a rare job, a nationality, an
+    exact age. Counting removed identifiers as risk both inflated the score and pointed
+    the user at the wrong thing to worry about.
+    """
     quasi = scan_quasi(text)
     kinds = {q.kind for q in quasi}
-    residual = [s for s in scan(text) if s.kind != "phone"]
 
-    score = min(1.0, 0.22 * len(kinds) + 0.12 * len(residual))
+    # Distinct categories matter more than repetition: three mentions of the same
+    # university identify no better than one, but a university plus a nationality plus a
+    # rare role narrows the field sharply.
+    score = min(1.0, 0.25 * len(kinds) + 0.05 * max(0, len(quasi) - len(kinds)))
     level = "high" if score >= 0.6 else "medium" if score >= 0.3 else "low"
+
+    removed: dict[str, int] = {}
+    for s in spans:
+        removed[s.kind] = removed.get(s.kind, 0) + 1
+
     return {
         "score": round(score, 2),
         "level": level,
         "quasi_identifiers": [{"kind": q.kind, "text": q.text} for q in quasi[:12]],
-        "residual_direct": [{"kind": s.kind, "text": s.text} for s in residual[:8]],
+        "removed_direct": removed,
         "note": ("Removing names produces pseudonymised text, not anonymous text. "
-                 "Rare combinations of details can still identify a person."),
+                 "The risk above is what survives redaction: a rare combination of job, "
+                 "place and age can still identify someone with every name stripped."),
     }

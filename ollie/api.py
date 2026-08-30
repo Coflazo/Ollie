@@ -325,23 +325,65 @@ async def context() -> dict:
 
 
 @app.get("/v1/memories")
-async def list_memories() -> dict:
+async def list_memories(provenance: bool = False) -> dict:
+    """Every live memory. With `provenance`, each one also carries the message it came
+    from, because a record the user cannot trace is a record they cannot judge."""
     if not S.profile_id:
         return {"memories": [], "threads": []}
-    return {
-        "memories": [
-            {k: m[k] for k in ("id", "kind", "subject", "predicate", "confidence",
-                               "importance", "sensitivity", "user_locked",
-                               "requires_confirmation")} | {"value": m["value"]}
-            for m in S.store.memories(S.profile_id)],
-        "threads": S.store.threads(S.profile_id),
-    }
+
+    out = []
+    for m in S.store.memories(S.profile_id):
+        row = {k: m[k] for k in ("id", "kind", "subject", "predicate", "confidence",
+                                 "importance", "sensitivity", "user_locked",
+                                 "requires_confirmation", "created_at")}
+        row["value"] = m["value"]
+        if provenance:
+            row["sources"] = S.store.memory_provenance(m["id"])
+        out.append(row)
+
+    return {"memories": out, "threads": S.store.threads(S.profile_id)}
+
+
+class MemoryEdit(BaseModel):
+    value: str | None = None
+    lock: bool | None = None
 
 
 @app.patch("/v1/memories/{memory_id}")
-async def patch_memory(memory_id: str, lock: bool | None = None) -> dict:
-    if lock is not None:
-        S.store.lock_memory(memory_id, lock)
+async def patch_memory(memory_id: str, body: MemoryEdit | None = None,
+                       lock: bool | None = None) -> dict:
+    """Lock a memory, or correct it.
+
+    A correction does not overwrite. It writes a new record that supersedes the old one,
+    keeping the original and the audit link, because the history of what the system
+    believed about someone is part of what they are entitled to see. The replacement
+    inherits the original's provenance: the user is correcting what was understood, not
+    inventing a new source.
+    """
+    if not S.profile_id:
+        raise HTTPException(409, "no profile")
+
+    lock_value = lock if lock is not None else (body.lock if body else None)
+    if lock_value is not None:
+        S.store.lock_memory(memory_id, lock_value)
+
+    if body and body.value is not None:
+        original = S.store.get("memories", memory_id)
+        if not original:
+            raise HTTPException(404, "no such memory")
+        sources = [s["message_id"] for s in S.store.memory_provenance(memory_id)]
+        new_id = S.store.add_memory(
+            profile_id=S.profile_id, kind="correction", subject=original["subject"],
+            predicate=original["predicate"], value=body.value,
+            confidence=0.98, importance=max(3, original["importance"]),
+            sensitivity=original["sensitivity"],
+            source_message_ids=sources or ["user_correction"],
+            persona_id=S.persona_id, requires_confirmation=False,
+        )
+        S.store.supersede_memory(memory_id, new_id)
+        S.store.lock_memory(new_id, True)  # the user said it explicitly; keep it
+        return {"ok": True, "replaced_by": new_id}
+
     return {"ok": True}
 
 

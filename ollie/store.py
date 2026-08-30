@@ -410,6 +410,20 @@ class Store:
         return [{**dict(r), "value": self.crypt.dec(r["enc_value"])}
                 for r in self.db.execute(sql, (profile_id,)).fetchall()]
 
+    def memory_provenance(self, memory_id: str) -> list[dict]:
+        """The messages a memory was drawn from, decrypted.
+
+        Shown in the memory manager. A record the user cannot trace back to something
+        they actually said is a record they have no basis to trust or correct.
+        """
+        rows = self.db.execute(
+            "SELECT m.id, m.role, m.enc_content, m.created_at FROM memory_sources ms "
+            "JOIN messages m ON m.id = ms.message_id WHERE ms.memory_id=? "
+            "ORDER BY m.created_at", (memory_id,)).fetchall()
+        return [{"message_id": r["id"], "role": r["role"],
+                 "text": self.crypt.dec(r["enc_content"]), "created_at": r["created_at"]}
+                for r in rows]
+
     def supersede_memory(self, old_id: str, new_id_: str) -> None:
         with self.tx() as db:
             db.execute("UPDATE memories SET superseded_by=? WHERE id=?", (new_id_, old_id))
