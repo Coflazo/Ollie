@@ -1,4 +1,3 @@
-// divergent line
 import { motion } from 'motion/react'
 import { useEffect, useState, type ReactNode } from 'react'
 
