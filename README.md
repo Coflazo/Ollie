@@ -370,6 +370,16 @@ tests/       205 tests, no network required
 docs/covers/ thumbnails for this document
 ```
 
+Two longer documents sit in `docs/`:
+
+- [**HANDOFF.md**](docs/HANDOFF.md) walks through setting up and verifying the whole product
+  on a fresh machine, step by step, with the expected output and the failure mode at every
+  stage. Read section 6 if you only read one thing: it is the flow that most needs a human
+  to watch it.
+- [**PRODUCT.md**](docs/PRODUCT.md) is the long version of this README. Why each module is
+  shaped the way it is, the decisions that could have gone the other way, and where the
+  product goes after the hackathon.
+
 Apache-2.0. See `LICENSE` and `NOTICE`.
 
 Built by [Coflazo](https://github.com/Coflazo) and onysislabs.

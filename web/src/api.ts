@@ -122,10 +122,15 @@ export const api = {
   questions: () =>
     request<{ items: Question[]; interview_turns: number }>('/v1/onboarding/questions'),
 
-  submitQuestionnaire: (answers: Record<string, number>, preferences: Record<string, unknown>, displayName: string) =>
+  submitQuestionnaire: (
+    answers: Record<string, number>,
+    preferences: Record<string, unknown>,
+    displayName: string,
+    knownType = '',
+  ) =>
     post<{ profile_id: string; big_five: Record<string, number>; question: string; turn: number; total: number }>(
       '/v1/onboarding/questionnaire',
-      { answers, preferences, display_name: displayName },
+      { answers, preferences, display_name: displayName, known_type: knownType },
     ),
 
   answerInterview: (answer: string) =>

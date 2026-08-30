@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import chat, config, hardware, market, memory, persona, safety, types16
+from . import chat, config, graph, hardware, market, memory, persona, safety, types16
 from .ollama import Ollama, OllamaDown, select_model
 from .store import Store
 
@@ -335,6 +335,22 @@ async def approve_capsule(body: CapsuleApproval) -> dict:
         S.profile_id, S.persona_id, S.model, S.tier.context_cap, state,
         episode=old["episode_number"] + 1)
     S.store.approve_capsule(body.capsule_id, body.capsule, new_session)
+
+    # Rollover is the natural consolidation point: the episode is closed, so a sanitised
+    # card can be written and the graph rebuilt from it. Both are best-effort. A graph
+    # that fails to build costs one hop of retrieval quality, never the conversation.
+    try:
+        persona_card = S.persona_card()
+        graph.write_episode_card(
+            S.store, session_id=old["id"],
+            persona_name=persona_card.get("display_name", "them"),
+            summary=body.capsule.get("recent_summary", ""),
+            threads=body.capsule.get("open_threads", []),
+            deltas={k: v for k, v in old["state"].items() if isinstance(v, (int, float))},
+        )
+        graph.build(S.store)
+    except Exception:
+        pass
 
     opening = memory.capsule_to_opening_context(body.capsule)
     S.store.append_message(new_session, "system", opening, tokens=len(opening) // 4)

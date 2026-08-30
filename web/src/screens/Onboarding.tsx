@@ -50,6 +50,7 @@ export function Onboarding({ onDone }: { onDone: (d: Done) => void }) {
         answers,
         { content_mode: mature ? 'mature' : 'general', adult_confirmed: adult },
         name,
+        knownType,
       )
       setThread([{ role: 'ollie', text: res.question }])
       setTurn({ n: res.turn, total: res.total })
