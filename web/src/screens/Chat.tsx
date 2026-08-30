@@ -9,7 +9,7 @@ import {
   type MemoryRecord,
 } from '../api'
 import { StateDial, type InteractionState } from '../StateDial'
-import { Button, Chip, Meter, Panel, ease, riseIn } from '../ui'
+import { Button, Chip, Meter, Panel, Thinking, Waiting, ease, riseIn } from '../ui'
 import { Marketplace } from './Marketplace'
 import { Memories } from './Memories'
 
@@ -268,13 +268,26 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
                 >
                   <div className="flex items-center justify-between gap-4 rounded-lg border
                                   border-[var(--color-warm-dim)]/40 bg-[var(--color-warm-dim)]/10 px-4 py-3">
-                    <p className="text-[13px] text-[var(--color-muted)]">
-                      This conversation is nearly full. Carry it into a new one before it starts
-                      forgetting.
-                    </p>
-                    <Button variant="ghost" onClick={startRollover}>
-                      review
-                    </Button>
+                    {/* Drafting the capsule measured at 47s. Leaving the same sentence on
+                        screen with a dead button was the longest unexplained pause in the
+                        product, and it sits on the path the demo is judged on. */}
+                    {busy ? (
+                      <Waiting
+                        label="reading the conversation back"
+                        hint="deciding what carries over and what stays behind. you get to
+                              edit it before anything is kept."
+                      />
+                    ) : (
+                      <>
+                        <p className="text-[13px] text-[var(--color-muted)]">
+                          This conversation is nearly full. Carry it into a new one before it
+                          starts forgetting.
+                        </p>
+                        <Button variant="ghost" onClick={startRollover}>
+                          review
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -393,23 +406,6 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
           />
         )}
       </AnimatePresence>
-    </div>
-  )
-}
-
-/** Three dots that breathe. The only always-on animation in the app, and it earns it by
- *  standing in for a reply that can take several seconds on a local model. */
-function Thinking() {
-  return (
-    <div className="flex gap-1.5" aria-label="thinking">
-      {[0, 1, 2].map((i) => (
-        <motion.span
-          key={i}
-          className="size-1.5 rounded-full bg-[var(--color-faint)]"
-          animate={{ opacity: [0.25, 1, 0.25] }}
-          transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.14, ease: 'easeInOut' }}
-        />
-      ))}
     </div>
   )
 }

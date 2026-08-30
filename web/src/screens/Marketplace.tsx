@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import { api, type MarketPreview, type Receipt } from '../api'
-import { Button, Chip, ease } from '../ui'
+import { Button, Chip, Waiting, ease } from '../ui'
 
 /**
  * The simulated research contribution.
@@ -87,7 +87,9 @@ export function Marketplace({ onClose }: { onClose: () => void }) {
 
         {error && <p className="mt-4 text-[13px] text-[var(--color-warm)]">{error}</p>}
         {!preview && !error && (
-          <p className="mt-6 text-[13px] text-[var(--color-faint)]">redacting locally…</p>
+          <Waiting className="mt-6" label="redacting locally"
+                   hint="scanning for identifiers and working out what would still be
+                         linkable to you afterwards." />
         )}
 
         {preview && (

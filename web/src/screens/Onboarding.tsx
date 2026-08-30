@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
 import { api, type Candidate, type Question, type Read } from '../api'
-import { Button, Chip, Panel, riseIn } from '../ui'
+import { Button, Chip, Panel, Waiting, riseIn } from '../ui'
 
 type Done = { read: Read; candidates: Candidate[]; matching: Matching }
 export type Matching = {
@@ -230,7 +230,19 @@ export function Onboarding({ onDone }: { onDone: (d: Done) => void }) {
             </motion.div>
           ))}
         </AnimatePresence>
-        {busy && <p className="text-[13px] text-[var(--color-faint)]">…</p>}
+        {/* The last answer is not like the other four. It also extracts your traits and
+            writes three people, which measured at 78s against 1.4-1.9s for the turns
+            before it. Identical feedback for both is what made this look frozen. */}
+        {busy &&
+          (turn.n >= turn.total ? (
+            <Waiting
+              label="reading everything you said"
+              hint="working out your type, ranking all sixteen, and writing three people to
+                    match. this is the long one — a minute or so."
+            />
+          ) : (
+            <Waiting label="thinking about that" />
+          ))}
       </div>
 
       <div className="mt-6">

@@ -239,6 +239,38 @@ def repetition_ratio(text: str, recent: list[str]) -> float:
     return best
 
 
+# A signature opener is character. The same four words every time is a stuck record, and
+# the gap between them is roughly here: "right," or "theoretically," is one word and
+# survives, "you know, i was thinking" is five and does not.
+_OPENER_RUN = 4
+_MIN_WORDS_FOR_OPENER = 12
+
+
+def shared_opening(text: str, recent: list[str]) -> int:
+    """How many opening words this reply shares with its nearest recent neighbour.
+
+    Whole-reply similarity misses this: three replies can open with the identical filler
+    phrase and still be about entirely different things, so `repetition_ratio` stays low
+    while the conversation reads like a broken record. Only the first words are compared.
+
+    Short replies are exempt for the same reason as there — a conversational line is
+    allowed to recur, and it is the long reply with a bolted-on stock opening that is the
+    tell.
+    """
+    words = _WORDS.findall(text.lower())
+    if len(words) < _MIN_WORDS_FOR_OPENER:
+        return 0
+    best = 0
+    for prior in recent:
+        run = 0
+        for mine, theirs in zip(words, _WORDS.findall(prior.lower())):
+            if mine != theirs:
+                break
+            run += 1
+        best = max(best, run)
+    return best
+
+
 def question_ratio(recent_assistant_msgs: list[str]) -> float:
     """Fraction of recent replies ending in a question.
 
@@ -271,6 +303,14 @@ def check(text: str, recent_assistant_msgs: list[str] | None = None) -> StyleRes
     if len(recent) >= 3 and question_ratio(recent[-3:]) == 1.0 and cleaned.rstrip().endswith("?"):
         v = Violation("question_every_turn", Severity.HARD, "?",
                       "four replies in a row ending in a question")
+        hard.append(v)
+        violations.append(v)
+
+    if recent and (run := shared_opening(cleaned, recent)) >= _OPENER_RUN:
+        opener = " ".join(_WORDS.findall(cleaned.lower())[:run])
+        v = Violation("repeated_opener", Severity.HARD, opener,
+                      f"opening with the same words as a recent reply ({opener!r}); "
+                      "start somewhere else")
         hard.append(v)
         violations.append(v)
 

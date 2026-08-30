@@ -1,7 +1,7 @@
 import { motion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import { api, type Candidate, type Probe } from '../api'
-import { Button, Panel, riseIn } from '../ui'
+import { Button, Panel, Waiting, riseIn } from '../ui'
 
 export function Boot({
   onReady,
@@ -45,7 +45,7 @@ export function Boot({
         <Panel title="this machine">
           {error && <p className="text-sm text-[var(--color-warm)]">{error}</p>}
           {!probe && !error && (
-            <p className="text-sm text-[var(--color-faint)]">looking at your hardware…</p>
+            <Waiting label="looking at your hardware" />
           )}
           {probe && (
             <div className="space-y-3">

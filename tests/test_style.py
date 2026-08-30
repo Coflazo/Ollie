@@ -199,6 +199,42 @@ def test_short_replies_may_recur(text: str) -> None:
     assert not style.check(text, [text, text]).needs_regen
 
 
+# ------------------------------------------------------------------ repeated openers
+#
+# Observed on qwen3:14b: three consecutive replies opened "you know, i was thinking..." on
+# entirely different subjects. Whole-reply similarity stays low, so only comparing the
+# opening words catches it.
+
+_OPENER_RUN_ONE = ("you know, i was thinking... it's strange how sometimes people say "
+                   "things they don't really mean. the light here does change, doesn't it?")
+_OPENER_RUN_TWO = ("you know, i was thinking... i'm always okay. but sometimes i wonder if "
+                   "people are okay, and that's what makes it hard.")
+
+
+def test_the_same_opener_every_turn_is_rejected() -> None:
+    result = style.check(_OPENER_RUN_TWO, [_OPENER_RUN_ONE])
+    assert result.needs_regen
+    assert any(v.rule == "repeated_opener" for v in result.violations)
+
+
+def test_a_one_word_signature_opener_survives() -> None:
+    """The personas are given verbal tics on purpose. "right," every time is character;
+    four identical words every time is a stuck record."""
+    a = "right, i'm not sure how that helps but it's better than nothing at all really."
+    b = "right, i've been thinking about the interview and whether you actually want it."
+    assert not style.check(b, [a]).needs_regen, [v.rule for v in style.check(b, [a]).violations]
+
+
+def test_short_replies_may_open_alike() -> None:
+    assert not style.check("and then what.", ["and then what."]).needs_regen
+
+
+def test_shared_opening_bounds() -> None:
+    assert style.shared_opening("hm.", ["hm."]) == 0  # too short to judge
+    assert style.shared_opening(_OPENER_RUN_TWO, [_OPENER_RUN_ONE]) >= 4
+    assert style.shared_opening(_OPENER_RUN_TWO, []) == 0
+
+
 def test_repetition_ratio_bounds() -> None:
     assert style.repetition_ratio("anything at all", []) == 0.0
     assert style.repetition_ratio("hm.", ["hm."]) == 0.0  # too short to judge
