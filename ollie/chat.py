@@ -111,8 +111,16 @@ async def handle_turn(store: Store, client: Ollama, *, session: dict, profile: d
     while attempts <= MAX_REGENERATIONS:
         attempts += 1
         try:
+            # The one call that reasons first. Everything else in Ollie sends think=False,
+            # because reasoning cannot help a schema-constrained decode and costs 20-70x
+            # the latency there. This call is the product, and the difference is not
+            # subtle: without it, answering "yes. you are right. absolutely...." the model
+            # agreed and then repeated itself verbatim for two turns; with it, the same
+            # persona on the same message opened "you're agreeing too fast, i don't
+            # believe you." Replies cost roughly 2-3x longer. Worth it — a companion that
+            # folds when tested is the thing this product exists not to be.
             draft = await client.chat(session["model_tag"], messages,
-                                      num_ctx=session["context_cap"])
+                                      num_ctx=session["context_cap"], think=True)
         except OllamaDown:
             reply = "...hold on, something's wrong with my end. try again in a second."
             break
