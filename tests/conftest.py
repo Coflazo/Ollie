@@ -31,8 +31,9 @@ class FakeOllama:
         self.calls: list[dict] = []
 
     async def chat(self, model, messages, *, temperature=0.85, num_ctx=4096,
-                   schema=None, stop=None) -> str:
-        self.calls.append({"model": model, "messages": messages, "schema": schema})
+                   schema=None, stop=None, think=False) -> str:
+        self.calls.append({"model": model, "messages": messages, "schema": schema,
+                           "think": think})
         return self.replies.pop(0) if self.replies else "hm."
 
     async def chat_json(self, model, messages, schema, num_ctx=4096):

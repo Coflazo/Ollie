@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState } from 'react'
-import { api } from '../api'
-import { Button, Chip, ease } from '../ui'
+import { api, type MarketPreview, type Receipt } from '../api'
+import { Button, Chip, Waiting, ease } from '../ui'
 
 /**
  * The simulated research contribution.
@@ -18,45 +18,21 @@ import { Button, Chip, ease } from '../ui'
  * otherwise even though it would look better if it did.
  */
 
-type Preview = {
-  simulation: boolean
-  uploaded: boolean
-  paid: boolean
-  buyer: string
-  banner: string
-  purpose: string
-  turn_count: number
-  removed_by_kind: Record<string, number>
-  excluded_special_category: number
-  sample: { role: string; text: string; removed: number }[]
-  linkability: {
-    score: number
-    level: 'low' | 'medium' | 'high'
-    quasi_identifiers: { kind: string; text: string }[]
-    removed_direct: Record<string, number>
-    note: string
-  }
-  quote_eur: number
-}
-
 export function Marketplace({ onClose }: { onClose: () => void }) {
-  const [preview, setPreview] = useState<Preview | null>(null)
+  const [preview, setPreview] = useState<MarketPreview | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [receipt, setReceipt] = useState<{ receipt_id: string; path: string } | null>(null)
+  const [receipt, setReceipt] = useState<Receipt | null>(null)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    api
-      .marketPreview()
-      .then((p) => setPreview(p as unknown as Preview))
-      .catch((e) => setError(String(e)))
+    api.marketPreview().then(setPreview).catch((e) => setError(String(e)))
   }, [])
 
   async function accept() {
     if (!preview) return
     setBusy(true)
     try {
-      setReceipt(await api.marketAccept(preview as unknown as Record<string, unknown>))
+      setReceipt(await api.marketAccept(preview))
     } catch (e) {
       setError(String(e))
     } finally {
@@ -111,7 +87,9 @@ export function Marketplace({ onClose }: { onClose: () => void }) {
 
         {error && <p className="mt-4 text-[13px] text-[var(--color-warm)]">{error}</p>}
         {!preview && !error && (
-          <p className="mt-6 text-[13px] text-[var(--color-faint)]">redacting locally…</p>
+          <Waiting className="mt-6" label="redacting locally"
+                   hint="scanning for identifiers and working out what would still be
+                         linkable to you afterwards." />
         )}
 
         {preview && (

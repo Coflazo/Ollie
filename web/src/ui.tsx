@@ -1,5 +1,5 @@
 import { motion } from 'motion/react'
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 
 /** Expo-out. The built-in `ease-out` keyword is too weak to read as intentional, and
  *  `ease-in` is banned outright: it delays the first frame, which is exactly the moment
@@ -83,6 +83,77 @@ export function Meter({ fraction, stage }: { fraction: number; stage: string }) 
           animate={{ width: `${Math.min(100, fraction * 100)}%` }}
           transition={{ duration: 0.45, ease }}
         />
+      </div>
+    </div>
+  )
+}
+
+/** Three dots that breathe. The only always-on animation in the app, and it earns it by
+ *  standing in for a reply that can take several seconds on a local model. */
+export function Thinking({ className = '' }: { className?: string }) {
+  return (
+    <div className={`flex gap-1.5 ${className}`} aria-label="working" role="status">
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          className="size-1.5 rounded-full bg-[var(--color-faint)]"
+          animate={{ opacity: [0.25, 1, 0.25] }}
+          transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.14, ease: 'easeInOut' }}
+        />
+      ))}
+    </div>
+  )
+}
+
+/** A wait with something said about it.
+ *
+ *  Local inference is slow and wildly uneven: four interview turns land in under two
+ *  seconds each and the fifth takes eighty, because that one also extracts your traits and
+ *  writes three people. Identical silence for both is what makes the long one read as a
+ *  crash — the honest fix is to say which wait this is.
+ *
+ *  The elapsed count appears only once a wait has gone on long enough to worry about, so
+ *  fast steps stay quiet. It is a sign of life, not a progress bar: nothing here can
+ *  predict when a local model will finish, and a bar that pretends otherwise would be a
+ *  worse lie than saying nothing.
+ */
+export function Waiting({
+  label,
+  hint,
+  className = '',
+}: {
+  label: string
+  hint?: string
+  className?: string
+}) {
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    const timer = setInterval(() => setElapsed((s) => s + 1), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  return (
+    <div className={`flex items-start gap-2.5 ${className}`}>
+      <Thinking className="mt-1.5 shrink-0" />
+      <div className="min-w-0">
+        <p className="text-[13px] leading-snug text-[var(--color-muted)]">
+          {label}
+          {elapsed >= 4 && (
+            <span data-numeric className="ml-1.5 text-[var(--color-faint)]">
+              {elapsed}s
+            </span>
+          )}
+        </p>
+        {hint && elapsed >= 3 && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, ease }}
+            className="mt-1 text-[11px] leading-snug text-[var(--color-faint)]"
+          >
+            {hint}
+          </motion.p>
+        )}
       </div>
     </div>
   )

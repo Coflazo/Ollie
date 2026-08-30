@@ -26,6 +26,24 @@ async def test_happy_path_returns_the_reply(store: Store, session: dict, profile
 
 
 @pytest.mark.asyncio
+async def test_the_reply_is_the_one_call_that_reasons_first(
+        store: Store, session: dict, profile: str, persona_card: dict) -> None:
+    """Everything else sends think=False; this call must not.
+
+    Measured on qwen3:14b: without it, answering "yes. you are right. absolutely...." the
+    model agreed and then repeated itself word for word for two turns. With it, the same
+    persona on the same message opened "you're agreeing too fast, i don't believe you."
+    That is the entire thesis of the product, so it is worth pinning.
+    """
+    fake = FakeOllama(["you're agreeing too fast. i don't believe you."])
+    await chat.handle_turn(
+        store, fake, session=session, profile={"id": profile, "settings": {}},
+        persona_card=persona_card, user_text="yes. you are right. absolutely....",
+        traits="", settings=SETTINGS)
+    assert fake.calls[-1]["think"] is True, "the character's reply stopped reasoning first"
+
+
+@pytest.mark.asyncio
 async def test_assistant_voice_is_rejected_and_regenerated(
         store: Store, session: dict, profile: str, persona_card: dict) -> None:
     """The whole creativity thesis, as a test: a bland reply does not reach the user."""

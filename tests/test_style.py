@@ -178,3 +178,111 @@ def test_question_ratio() -> None:
     assert style.question_ratio([]) == 0.0
     assert style.question_ratio(["a?", "b."]) == 0.5
     assert style.question_ratio(["a?", "b?"]) == 1.0
+
+
+# ------------------------------------------------------------------ self-repetition
+#
+# Observed on qwen3:14b during the first end-to-end run: pushed to hold a position without
+# a new argument, it returned its previous reply verbatim with one clause bolted on.
+
+_HELD_POSITION = (
+    "theoretically, effort is a variable, but so are chemistry, timing, and the number of "
+    "times you accidentally say something that makes the other person want to leave the "
+    "room. i've seen relationships fail despite exhaustive effort."
+)
+
+
+def test_reciting_a_previous_reply_is_rejected() -> None:
+    result = style.check(_HELD_POSITION + " did i ever tell you about the board game?",
+                         [_HELD_POSITION])
+    assert result.needs_regen
+    assert any(v.rule == "self_repetition" for v in result.violations)
+    assert "another way to say it" in result.retry_note
+
+
+def test_holding_a_position_in_new_words_is_not_repetition() -> None:
+    """The character is supposed to keep its ground. Only reciting is the failure."""
+    restated = ("no. effort is the part everyone can see, which is why everyone points at "
+                "it. the timing is what actually decides, and you cannot try your way out "
+                "of bad timing.")
+    result = style.check(restated, [_HELD_POSITION])
+    assert not result.needs_regen, [v.rule for v in result.violations]
+
+
+@pytest.mark.parametrize("text", [
+    "hm.",
+    "sure. go on then.",
+    "right. and what happens when she says no.",
+])
+def test_short_replies_may_recur(text: str) -> None:
+    """"hm." twice is a person. A filter that flagged it would flatten the character."""
+    assert not style.check(text, [text, text]).needs_regen
+
+
+# ------------------------------------------------------------------ repeated openers
+#
+# Observed on qwen3:14b: three consecutive replies opened "you know, i was thinking..." on
+# entirely different subjects. Whole-reply similarity stays low, so only comparing the
+# opening words catches it.
+
+_OPENER_RUN_ONE = ("you know, i was thinking... it's strange how sometimes people say "
+                   "things they don't really mean. the light here does change, doesn't it?")
+_OPENER_RUN_TWO = ("you know, i was thinking... i'm always okay. but sometimes i wonder if "
+                   "people are okay, and that's what makes it hard.")
+
+
+def test_the_same_opener_every_turn_is_rejected() -> None:
+    result = style.check(_OPENER_RUN_TWO, [_OPENER_RUN_ONE])
+    assert result.needs_regen
+    assert any(v.rule == "repeated_opener" for v in result.violations)
+
+
+def test_a_one_word_signature_opener_survives() -> None:
+    """The personas are given verbal tics on purpose. "right," every time is character;
+    four identical words every time is a stuck record."""
+    a = "right, i'm not sure how that helps but it's better than nothing at all really."
+    b = "right, i've been thinking about the interview and whether you actually want it."
+    assert not style.check(b, [a]).needs_regen, [v.rule for v in style.check(b, [a]).violations]
+
+
+def test_short_replies_may_open_alike() -> None:
+    assert not style.check("and then what.", ["and then what."]).needs_regen
+
+
+def test_shared_opening_bounds() -> None:
+    assert style.shared_opening("hm.", ["hm."]) == 0  # too short to judge
+    assert style.shared_opening(_OPENER_RUN_TWO, [_OPENER_RUN_ONE]) >= 4
+    assert style.shared_opening(_OPENER_RUN_TWO, []) == 0
+
+
+def test_repetition_ratio_bounds() -> None:
+    assert style.repetition_ratio("anything at all", []) == 0.0
+    assert style.repetition_ratio("hm.", ["hm."]) == 0.0  # too short to judge
+    assert style.repetition_ratio(_HELD_POSITION, [_HELD_POSITION]) == 1.0
+
+
+# ----------------------------------------------------------------- stage directions
+
+
+@pytest.mark.parametrize("text,gone", [
+    ("theoretically, i've been reverse-engineering it. (pause) …wait, is it?", "(pause)"),
+    ("that's the whole problem with it (long pause) and you know it.", "long pause"),
+    ("fine. *shrugs* your call.", "*shrugs*"),
+    ("i said what i said. (sighs) anyway.", "(sighs)"),
+])
+def test_stage_directions_are_stripped_not_regenerated(text: str, gone: str) -> None:
+    result = style.check(text)
+    assert not result.needs_regen, "a removable aside is not worth 15 seconds"
+    assert gone not in result.text
+    assert "  " not in result.text, f"left doubled spacing: {result.text!r}"
+
+
+@pytest.mark.parametrize("text", [
+    # A real parenthetical aside is the character talking, not narrating itself.
+    "I can't tell if that was a joke. (genuinely asking, not being annoying)",
+    # Markdown emphasis on a title must survive intact.
+    "it's called *The Labyrinth of Unwinnable Rules* and the rules change mid-game.",
+    "she said no (twice) and I still went.",
+])
+def test_real_parentheticals_and_italics_survive(text: str) -> None:
+    assert style.check(text).text == text

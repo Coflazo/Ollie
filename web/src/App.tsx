@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { useState } from 'react'
 import type { Candidate, Probe, Read } from './api'
 import { Boot } from './screens/Boot'
@@ -18,58 +18,64 @@ export default function App() {
   const [probe, setProbe] = useState<Probe | null>(null)
 
   return (
-    // Wrapping the whole app kills the horizontal scrollbar that off-screen exit
-    // animations would otherwise introduce for one frame.
-    <div className="h-full w-full max-w-full overflow-x-hidden">
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={stage.name}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2, ease }}
-          className="h-full"
-        >
-          {stage.name === 'boot' && (
-            <Boot
-              onReady={(p) => {
-                setProbe(p)
-                setStage({ name: 'onboarding' })
-              }}
-              onResume={(p, persona) => {
-                setProbe(p)
-                setStage({ name: 'chat', persona })
-              }}
-            />
-          )}
+    // The reduced-motion block in index.css only reaches CSS transitions. Every animation
+    // `motion` drives is JavaScript writing inline styles, and it ignores the preference
+    // unless told not to. "user" snaps the movement and leaves opacity to carry the
+    // change, which is the policy that stylesheet already writes down.
+    <MotionConfig reducedMotion="user">
+      {/* Wrapping the whole app kills the horizontal scrollbar that off-screen exit
+          animations would otherwise introduce for one frame. */}
+      <div className="h-full w-full max-w-full overflow-x-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={stage.name}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease }}
+            className="h-full"
+          >
+            {stage.name === 'boot' && (
+              <Boot
+                onReady={(p) => {
+                  setProbe(p)
+                  setStage({ name: 'onboarding' })
+                }}
+                onResume={(p, persona) => {
+                  setProbe(p)
+                  setStage({ name: 'chat', persona })
+                }}
+              />
+            )}
 
-          {stage.name === 'onboarding' && (
-            <Onboarding
-              onDone={(d) =>
-                setStage({
-                  name: 'candidates',
-                  read: d.read,
-                  matching: d.matching,
-                  candidates: d.candidates,
-                })
-              }
-            />
-          )}
+            {stage.name === 'onboarding' && (
+              <Onboarding
+                onDone={(d) =>
+                  setStage({
+                    name: 'candidates',
+                    read: d.read,
+                    matching: d.matching,
+                    candidates: d.candidates,
+                  })
+                }
+              />
+            )}
 
-          {stage.name === 'candidates' && (
-            <Candidates
-              read={stage.read}
-              matching={stage.matching}
-              candidates={stage.candidates}
-              onChosen={(persona) => setStage({ name: 'chat', persona })}
-            />
-          )}
+            {stage.name === 'candidates' && (
+              <Candidates
+                read={stage.read}
+                matching={stage.matching}
+                candidates={stage.candidates}
+                onChosen={(persona) => setStage({ name: 'chat', persona })}
+              />
+            )}
 
-          {stage.name === 'chat' && (
-            <Chat persona={stage.persona} model={probe?.model ?? null} />
-          )}
-        </motion.div>
-      </AnimatePresence>
-    </div>
+            {stage.name === 'chat' && (
+              <Chat persona={stage.persona} model={probe?.model ?? null} />
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </MotionConfig>
   )
 }

@@ -23,8 +23,15 @@ if ! curl -sf --max-time 3 "${OLLAMA_HOST:-http://localhost:11434}/api/version" 
   fi
 fi
 
-# The native library is optional; Python fallbacks cover every function.
-if [ ! -f native/libollie_native.dylib ] && [ ! -f native/libollie_native.so ]; then
+# The native library is optional; Python fallbacks cover every function. Rebuild when the
+# source is newer than the binary as well as when it is missing: a pull that adds a native
+# function otherwise leaves a library that loads but lacks the new symbol, and the loader
+# then correctly but silently drops to Python for the rest of the demo.
+case "$(uname -s)" in
+  Darwin) LIB=native/libollie_native.dylib ;;
+  *)      LIB=native/libollie_native.so ;;
+esac
+if [ ! -f "$LIB" ] || [ native/ollie_native.cpp -nt "$LIB" ]; then
   ./native/build.sh >/dev/null 2>&1 || echo "  native build skipped, using python fallbacks"
 fi
 

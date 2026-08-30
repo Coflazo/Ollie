@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 from enum import Enum
 
 
@@ -94,6 +95,19 @@ RULES: list[Rule] = [
          _r(r"^(ah|oh|well|hmm),\s+"),
          Severity.SOFT, "stock opening beat"),
 
+    # Roleplay-tuned models narrate themselves. Nothing in the prompts asks for this, and a
+    # person texting does not write their own stage directions. Soft because deleting the
+    # aside leaves a sentence that is still the character's, so it is not worth a
+    # regeneration. The alternation is kept tight on purpose: a parenthetical is usually a
+    # real aside, and "*a title in italics*" must survive.
+    Rule("stage_direction",
+         _r(r"\(\s*(?:a\s+)?(?:long|brief|short|slight)?\s*"
+            r"(?:pause[sd]?|beat|silence|sigh[s]?|laugh(?:s|ing)?|shrug[s]?|"
+            r"smile[s]?|smiling|grin[s]?|nod(?:s|ding)?|exhales?|inhales?)\s*\)"
+            r"|\*\s*(?:pause[sd]?|beat|sigh[s]?|laugh[s]?|shrug[s]?|smile[s]?|"
+            r"grin[s]?|nod[s]?|exhales?|inhales?)\s*\*"),
+         Severity.SOFT, "narrating itself with a stage direction"),
+
     Rule("em_dash_spam",
          re.compile(r"—.*—"),
          Severity.SOFT, "more than one em dash"),
@@ -161,8 +175,10 @@ RULES: list[Rule] = [
          Severity.SOFT, "emoji; the character types in words"),
 ]
 
-# Applied when a SOFT rule fires. Order matters: openers before dashes.
+# Applied when a SOFT rule fires. Order matters: stage directions first, because removing
+# one can expose a stock opener behind it; then openers, then dashes.
 _SOFT_FIXES: list[tuple[re.Pattern[str], str]] = [
+    (next(r.pattern for r in RULES if r.name == "stage_direction"), ""),
     (_r(r"^(ah|oh|well|hmm),\s+"), ""),
     (re.compile(r"\s*—\s*"), ", "),
     (re.compile("[\U0001F300-\U0001FAFF\U00002600-\U000027BF"
@@ -182,9 +198,81 @@ def repair_soft(text: str) -> str:
     """Fix what can be fixed without another generation."""
     for pattern, repl in _SOFT_FIXES:
         text = pattern.sub(repl, text)
-    # An em dash converted to a comma can leave doubled punctuation behind.
+    # An em dash converted to a comma can leave doubled punctuation behind, and a removed
+    # stage direction leaves the space that was on either side of it.
     text = re.sub(r",\s*,", ",", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"[ \t]+([,.!?])", r"\1", text)
     return text.strip()
+
+
+# How much of a reply may match a recent one before it counts as reciting rather than
+# holding a position. Set from observed behaviour: a 14B model asked to hold a line
+# reproduced its previous answer at well over 90%, while genuinely restating an argument in
+# new words lands far below this.
+REPETITION_THRESHOLD = 0.75
+# Only paragraphs are judged. Conversational lines recur naturally — "right. and what
+# happens when she says no." is a normal thing to land on twice — and the observed failure
+# was a forty-five word answer reproduced whole, so the bar sits above any single beat.
+_MIN_WORDS_FOR_REPETITION = 20
+
+_WORDS = re.compile(r"[a-z0-9']+")
+
+
+def repetition_ratio(text: str, recent: list[str]) -> float:
+    """How close this reply is to the nearest recent one, 0 to 1.
+
+    Short replies are exempt, and that exemption is the important half. "hm.", "go on
+    then." and a character's verbal tics are *supposed* to recur — a filter that punished
+    them would flatten exactly the voice this module exists to protect.
+
+    What this catches is the failure that looks like the product working: pushed to hold a
+    position, the model restates its last answer word for word instead of finding another
+    way to say it. Holding the line is the thesis. Reciting it is the model giving up on
+    the turn, and it reads as broken.
+    """
+    words = _WORDS.findall(text.lower())
+    if len(words) < _MIN_WORDS_FOR_REPETITION:
+        return 0.0
+    best = 0.0
+    for prior in recent:
+        prior_words = _WORDS.findall(prior.lower())
+        if len(prior_words) < _MIN_WORDS_FOR_REPETITION:
+            continue
+        best = max(best, SequenceMatcher(None, words, prior_words).ratio())
+    return best
+
+
+# A signature opener is character. The same four words every time is a stuck record, and
+# the gap between them is roughly here: "right," or "theoretically," is one word and
+# survives, "you know, i was thinking" is five and does not.
+_OPENER_RUN = 4
+_MIN_WORDS_FOR_OPENER = 12
+
+
+def shared_opening(text: str, recent: list[str]) -> int:
+    """How many opening words this reply shares with its nearest recent neighbour.
+
+    Whole-reply similarity misses this: three replies can open with the identical filler
+    phrase and still be about entirely different things, so `repetition_ratio` stays low
+    while the conversation reads like a broken record. Only the first words are compared.
+
+    Short replies are exempt for the same reason as there — a conversational line is
+    allowed to recur, and it is the long reply with a bolted-on stock opening that is the
+    tell.
+    """
+    words = _WORDS.findall(text.lower())
+    if len(words) < _MIN_WORDS_FOR_OPENER:
+        return 0
+    best = 0
+    for prior in recent:
+        run = 0
+        for mine, theirs in zip(words, _WORDS.findall(prior.lower())):
+            if mine != theirs:
+                break
+            run += 1
+        best = max(best, run)
+    return best
 
 
 def question_ratio(recent_assistant_msgs: list[str]) -> float:
@@ -219,6 +307,21 @@ def check(text: str, recent_assistant_msgs: list[str] | None = None) -> StyleRes
     if len(recent) >= 3 and question_ratio(recent[-3:]) == 1.0 and cleaned.rstrip().endswith("?"):
         v = Violation("question_every_turn", Severity.HARD, "?",
                       "four replies in a row ending in a question")
+        hard.append(v)
+        violations.append(v)
+
+    if recent and (run := shared_opening(cleaned, recent)) >= _OPENER_RUN:
+        opener = " ".join(_WORDS.findall(cleaned.lower())[:run])
+        v = Violation("repeated_opener", Severity.HARD, opener,
+                      f"opening with the same words as a recent reply ({opener!r}); "
+                      "start somewhere else")
+        hard.append(v)
+        violations.append(v)
+
+    if recent and (ratio := repetition_ratio(cleaned, recent)) >= REPETITION_THRESHOLD:
+        v = Violation("self_repetition", Severity.HARD, f"{ratio:.0%} the same",
+                      "repeating a previous reply almost word for word; hold the position "
+                      "but find another way to say it")
         hard.append(v)
         violations.append(v)
 

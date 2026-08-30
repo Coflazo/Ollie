@@ -46,9 +46,11 @@ class State:
         self.candidates: list[dict] = []
         self.matching: dict = {}
         self.known_type: str = ""
+        # Deliberately in memory only; see submit_questionnaire.
+        self.seeking: str = ""
         self.settings: dict[str, Any] = {
             "content_mode": "general", "adult_confirmed": False,
-            "intensity": "moderate", "languages": ["English"],
+            "intensity": "moderate", "languages": ["English"], "pronouns": "",
         }
         self.last_consolidation: dict = {}
         self.resumable: dict | None = None
@@ -130,6 +132,17 @@ class State:
 S = State()
 
 
+def _user_profile() -> str:
+    """What the character knows about who it is talking to.
+
+    Pronouns ride along with the trait summary because the alternative is a character that
+    guesses, and guessing wrong at someone's pronouns on a date is not a small error.
+    """
+    summary = S.traits.summary()
+    pronouns = str(S.settings.get("pronouns") or "").strip()
+    return f"{summary}\nThey go by {pronouns}." if pronouns else summary
+
+
 # ------------------------------------------------------------------------ setup
 
 
@@ -195,12 +208,22 @@ async def submit_questionnaire(body: Questionnaire) -> dict:
     big_five = persona.score_questionnaire(body.answers)
     S.traits = persona.TraitProfile(big_five=big_five)
     S.interview = []
-    S.settings.update({k: v for k, v in body.preferences.items()
+    prefs = dict(body.preferences)
+
+    # Who someone wants to be matched with is their sexual orientation, which is Article 9
+    # special-category data, and `settings_json` is one of the few columns stored in the
+    # clear. So it is held for this process only, spent on writing the three characters,
+    # and never written down — the personas it produces are the durable artifact. Popping
+    # it here rather than filtering later is deliberate: the raw dict below goes to disk
+    # whole, so anything still in it is stored.
+    S.seeking = str(prefs.pop("seeking", "")).replace("\n", " ").strip()[:120]
+
+    S.settings.update({k: v for k, v in prefs.items()
                        if k in {"content_mode", "intensity", "languages",
-                                "communication", "adult_confirmed"}})
+                                "communication", "adult_confirmed", "pronouns"}})
     S.known_type = body.known_type.strip().upper() if body.known_type else ""
     S.profile_id = S.store.create_profile(
-        {**S.settings, "preferences": body.preferences}, {"big_five": big_five},
+        {**S.settings, "preferences": prefs}, {"big_five": big_five},
         body.display_name)
 
     if not S.model:
@@ -233,8 +256,9 @@ async def interview(body: InterviewAnswer) -> dict:
     S.traits = await persona.extract_traits(
         S.client, S.model, S.interview, S.traits.big_five, S.tier.context_cap)
     S.candidates, S.matching = await persona.generate_candidates(
-        S.client, S.model, S.traits, S.settings, S.tier.context_cap,
-        user_type=S.known_type or None)
+        S.client, S.model, S.traits,
+        {**S.settings, **({"seeking": S.seeking} if S.seeking else {})},
+        S.tier.context_cap, user_type=S.known_type or None)
 
     return {
         "done": True,
@@ -272,7 +296,7 @@ async def select_persona(body: Selection) -> dict:
 
     _prompt, prompt_hash = persona.compile_prompt(
         card, stage="first_date", state=persona.DEFAULT_STATE, episode=1,
-        user_profile=S.traits.summary(), memories=[], sources=[], recent=[],
+        user_profile=_user_profile(), memories=[], sources=[], recent=[],
         open_threads=[], boundaries=[], content_mode=S.settings["content_mode"])
 
     S.persona_id = S.store.create_persona(S.profile_id, card, prompt_hash)
@@ -296,7 +320,7 @@ async def send_message(body: Message, background: BackgroundTasks) -> dict:
     result = await chat.handle_turn(
         S.store, S.client, session=session, profile=S.profile(),
         persona_card=S.persona_card(), user_text=body.text,
-        traits=S.traits.summary(), settings=S.settings)
+        traits=_user_profile(), settings=S.settings)
 
     if not result.blocked:
         background.add_task(_consolidate, session, result)

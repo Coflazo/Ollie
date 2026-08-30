@@ -39,6 +39,26 @@ def _load() -> ctypes.CDLL | None:
         _load_error = f"load failed: {exc}"
         return None
 
+    # Binding every symbol here rather than at the call site is what makes a stale library
+    # detectable. A .dylib built before a function was added loads perfectly well and then
+    # raises AttributeError on the first call to the symbol it is missing — which is worse
+    # than having no library at all, because the Python fallbacks exist precisely so that a
+    # missing native path costs nothing but speed. `scripts/ollie` only builds when the
+    # file is absent, so this is the ordinary state of a working tree after a pull that
+    # touched the C++. Treat incomplete as absent and carry on in Python.
+    try:
+        _bind(lib)
+    except AttributeError as exc:
+        _load_error = f"stale library, rebuild with native/build.sh ({exc})"
+        return None
+
+    _lib = lib
+    _load_error = ""
+    return _lib
+
+
+def _bind(lib: ctypes.CDLL) -> None:
+    """Declare every signature. Raises AttributeError if the library predates one."""
     lib.ollie_physical_ram.restype = ctypes.c_uint64
     lib.ollie_physical_ram.argtypes = []
 
@@ -66,10 +86,6 @@ def _load() -> ctypes.CDLL | None:
 
     lib.ollie_version.restype = ctypes.c_char_p
     lib.ollie_version.argtypes = []
-
-    _lib = lib
-    _load_error = ""
-    return _lib
 
 
 def available() -> bool:
