@@ -58,13 +58,27 @@ TRANSCRIPT = [
     ("assistant", "good. tell her to not give you a pep talk in the car, you hate those."),
 ]
 
+# Each record names the exact turns it came from, by index into TRANSCRIPT. The memory
+# manager shows provenance, so a record pointing at a message that does not contain it
+# undermines the one screen whose whole job is to be checkable.
+#
+#   kind, subject, predicate, value, confidence, importance, sensitivity, source turns
 MEMORIES = [
-    ("user_fact", "user", "has an interview on", "Thursday at 10am", 0.95, 5, "normal"),
-    ("user_fact", "user", "applied for", "a research role", 0.95, 4, "normal"),
-    ("user_fact", "sister", "is called", "Deniz", 0.95, 3, "personal"),
-    ("user_fact", "sister", "is driving them to", "the Thursday interview", 0.9, 3, "personal"),
-    ("preference", "user", "dislikes", "pep talks before something stressful", 0.75, 3, "normal"),
-    ("boundary", "user", "does not want", "reassurance that skips over the worry", 0.9, 5, "normal"),
+    ("user_fact", "user", "has an interview on", "Thursday at 10am",
+     0.95, 5, "normal", [0, 6]),
+    ("user_fact", "user", "applied for", "a research role",
+     0.95, 4, "normal", [2]),
+    ("user_fact", "sister", "is called", "Deniz",
+     0.95, 3, "personal", [6]),
+    ("user_fact", "sister", "is driving them to", "the Thursday interview",
+     0.9, 3, "personal", [6]),
+    # The user never said this; the character asserted it and was not contradicted. That
+    # is exactly the kind of record that should sit below the confirmation threshold, and
+    # the manager labels it "inferred" so the user can correct or delete it.
+    ("preference", "user", "dislikes", "pep talks before something stressful",
+     0.6, 3, "normal", [7]),
+    ("boundary", "user", "does not want", "reassurance that skips over the worry",
+     0.9, 5, "normal", [4]),
 ]
 
 THREADS = ["find out how the Thursday interview went"]
@@ -143,13 +157,11 @@ def seed(store: Store, model_tag: str, context_cap: int, *,
         message_ids.append(
             store.append_message(session_id, role, text, tokens=max(1, len(text) // 4)))
 
-    # Attribute every memory to a message that actually contains it, because the store
-    # rejects records with no source and the provenance is shown in the interface.
-    user_msgs = [mid for mid, (role, _t) in zip(message_ids, TRANSCRIPT) if role == "user"]
-    for kind, subject, predicate, value, conf, importance, sensitivity in MEMORIES:
-        source = user_msgs[0] if "interview" in value or "research" in value else user_msgs[-1]
+    for kind, subject, predicate, value, conf, importance, sensitivity, turns in MEMORIES:
         store.add_memory(profile_id, kind, subject, predicate, value, conf, importance,
-                         sensitivity, [source], persona_id=persona_id)
+                         sensitivity, [message_ids[t] for t in turns],
+                         persona_id=persona_id,
+                         requires_confirmation=conf < 0.7)
 
     for title in THREADS:
         store.add_thread(profile_id, session_id, title, message_ids[-1])

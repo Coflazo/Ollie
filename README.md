@@ -232,7 +232,7 @@ open episode two, assert the fact is still there and the open thread survived.
 
 ### Code quality
 
-267 tests, no network required. A `FakeOllama` test double runs the entire turn pipeline
+330 tests, no network required. A `FakeOllama` test double runs the entire turn pipeline
 without inference, which is the only way to assert deterministic things about a stochastic
 system. You can prove that a reply containing "I'm here for you" gets rejected and
 regenerated.
@@ -283,7 +283,7 @@ already read costs the demo.
 | Memory | SQLite + AES-GCM | Authoritative and ordered. Message bodies and memory values encrypted, key in the macOS Keychain. |
 | Retrieval | FTS5 + fused signals | Instant and deterministic. Embeddings measured at 67s per batch of 8 on the 8 GB build machine, so they are off by default. |
 | Native | C++20, no CMake | Copyright-overlap guard and retrieval fusion. One `clang++` invocation, one file. |
-| Interface | React, Tailwind, motion, Geist | Five screens. Warm, low-light, private. The opposite of a swipe deck. |
+| Interface | React, Tailwind, motion, Geist | Seven screens. Warm, low-light, private. The opposite of a swipe deck. |
 
 `ollie_longest_overlap` blocks any reply sharing more than twelve consecutive words with a
 source, then regenerates it with the sources removed from the prompt. A model that has
@@ -348,7 +348,7 @@ Other commands:
 ./.venv/bin/python -m ollie ingest --books /path/to/books  # index your own library
 ./.venv/bin/python -m ollie dump memories                  # decrypt records for debugging
 ./.venv/bin/python -m ollie reset                          # delete every conversation
-./.venv/bin/python -m pytest                               # 267 tests
+./.venv/bin/python -m pytest                               # 330 tests
 ```
 
 ---
@@ -396,7 +396,7 @@ ollie/       engine: persona, types16, memory, retrieval, safety, style, privacy
 prompts/     the voice: immutable contract, character core, runtime templates
 native/      C++20 hot paths, each with a Python twin
 web/         React interface
-tests/       267 tests, no network required
+tests/       330 tests, no network required
 docs/covers/ thumbnails for this document
 ```
 

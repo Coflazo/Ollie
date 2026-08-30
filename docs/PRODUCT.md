@@ -424,7 +424,7 @@ ollie/
 prompts/        the immutable contract, the character, the runtime templates
 native/         the C++ hot paths and their Python twins
 web/            the five screens
-tests/          267 tests, none of which need a model
+tests/          330 tests, none of which need a model
 docs/           this document and the handoff
 ```
 

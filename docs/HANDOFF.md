@@ -320,31 +320,27 @@ is a claim the README makes, so it is a claim worth testing in front of judges.
 
 Things I know are incomplete. Fix in this order if there is time.
 
-1. **No marketplace UI.** The backend is complete and tested: `/v1/marketplace/preview`
-   redacts the transcript, computes a linkability risk, and returns a deterministic quote
-   from a fictional buyer; `/v1/marketplace/accept` writes a local receipt stamped as a
-   simulation. There is no screen for it. You can demo it from the command line:
-   ```bash
-   curl -s -X POST http://127.0.0.1:8765/v1/marketplace/preview | python3 -m json.tool
-   ```
-   Building the modal is maybe forty minutes. It scores nothing on the published criteria,
-   so do it last.
+1. **The style filter has never faced a 14B model.** It was tuned against a 3B, and a
+   round of patterns aimed at larger models has since been added blind: markdown
+   formatting, performed curiosity, unrequested advice, pre-emptive validation, reflective
+   listening, essay connectives, aphorism closes and emoji. Those are educated guesses. If
+   you see an assistant-ism that gets through, add it to `RULES` in `ollie/style.py` with a
+   severity and add the string to `LARGE_MODEL_ISMS` in `tests/test_style.py`. Two lines,
+   and the test proves it works. Equally important: if the filter rejects something that
+   was actually in character, add it to `BLUNT_BUT_FINE` in the same file, because a false
+   positive sands the character down into the voice the filter exists to prevent.
 
-2. **The style filter has never faced a 14B model.** It was tuned against the patterns a 3B
-   model produces. A larger model may produce assistant-isms the pattern list does not cover.
-   If you see one, add it to `RULES` in `ollie/style.py` with a severity and add the string
-   to `ASSISTANT_ISMS` in `tests/test_style.py`. That is a two-line change and the test
-   proves it works.
+2. **Graph memory only rebuilds at rollover.** `write_episode_card` and `graph.build` run
+   when a capsule is approved, which is the correct consolidation point but means
+   graph-expanded retrieval does nothing in a single-episode demo.
 
-3. **Interaction state is computed but barely shown.** The six variables drift correctly and
-   are carried across the rollover, but the interface only exposes them inside the "why this
-   reply" drawer. A small always-visible indicator in the left rail would make emotional
-   calibration legible without a click.
+3. **Embeddings are off.** FTS5 alone retrieves well and turning them on is untested at
+   scale. Do not change this today.
 
-4. **Graph memory only rebuilds at rollover.** `write_episode_card` and `graph.build` are
-   called when a capsule is approved, which means graph-expanded retrieval does nothing in
-   episode one. That is the correct consolidation point, but it means the feature is
-   invisible in a single-episode demo.
+4. **PII scanning is Python, deliberately.** It measured 25ms to scan a 400-turn
+   transcript, once per export click. Hand-porting twelve regexes into C++ for that, in a
+   scanner where a subtle parity miss leaks an identifier, is a bad trade. It is written
+   down here so nobody re-derives it.
 
 5. **CI is not on GitHub.** `.github/workflows/ci.yml` exists locally but Coflazo's token
    lacks `workflow` scope. Either push it with a token that has that scope, or paste the
@@ -439,7 +435,7 @@ live.
 5. **Open "why this reply".** Show the memories and books that fed it. (20s)
 6. **Force the rollover, read the capsule, start episode two, ask about the earlier
    detail.** It remembers. (40s)
-7. **Close on the repository.** 267 tests, no network needed, C++ with a Python twin and a
+7. **Close on the repository.** 330 tests, no network needed, C++ with a Python twin and a
    randomised parity test, and a CI job that refuses to let a book into the repo. (20s)
 
 For the one-minute video, cut steps 4 and 6 only. Pushback and recall are the two things

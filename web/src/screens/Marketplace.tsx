@@ -33,7 +33,7 @@ type Preview = {
     score: number
     level: 'low' | 'medium' | 'high'
     quasi_identifiers: { kind: string; text: string }[]
-    residual_direct: { kind: string; text: string }[]
+    removed_direct: Record<string, number>
     note: string
   }
   quote_eur: number
