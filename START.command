@@ -32,6 +32,22 @@ if ! command -v git >/dev/null 2>&1; then
   die "git is not installed. Install the Xcode command line tools: xcode-select --install"
 fi
 
+# A half-finished merge or rebase leaves files in a conflicted state, and every git
+# command after that refuses with "needs merge" until it is cleared. Backing out is safe
+# here for the same reason the pull below is: nothing committed lives only on a branch.
+if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then
+  note "a rebase was in progress, backing out of it"
+  git rebase --abort >/dev/null 2>&1 || true
+fi
+if [ -f .git/MERGE_HEAD ]; then
+  note "a merge was in progress with conflicts, backing out of it"
+  git merge --abort >/dev/null 2>&1 || git reset -q --merge >/dev/null 2>&1 || true
+fi
+if [ -n "$(git diff --name-only --diff-filter=U 2>/dev/null)" ]; then
+  note "clearing files left in a conflicted state"
+  git checkout -f -- . >/dev/null 2>&1 || true
+fi
+
 STASH=""
 if [ -n "$(git status --porcelain)" ]; then
   STASH="ollie-start-$(date +%s)"
