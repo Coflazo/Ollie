@@ -232,7 +232,7 @@ open episode two, assert the fact is still there and the open thread survived.
 
 ### Code quality
 
-418 tests, no network required. A `FakeOllama` test double runs the entire turn pipeline
+498 tests, no network required. A `FakeOllama` test double runs the entire turn pipeline
 without inference, which is the only way to assert deterministic things about a stochastic
 system. You can prove that a reply containing "I'm here for you" gets rejected and
 regenerated.
@@ -348,7 +348,7 @@ Other commands:
 ./.venv/bin/python -m ollie ingest --books /path/to/books  # index your own library
 ./.venv/bin/python -m ollie dump memories                  # decrypt records for debugging
 ./.venv/bin/python -m ollie reset                          # delete every conversation
-./.venv/bin/python -m pytest                               # 418 tests
+./.venv/bin/python -m pytest                               # 498 tests
 ```
 
 ---
@@ -396,7 +396,7 @@ ollie/       engine: persona, types16, memory, retrieval, safety, style, privacy
 prompts/     OLLIE_SYSTEM.md, the single prompt: contract, voice, all sixteen types, the library
 native/      C++20 hot paths, each with a Python twin
 web/         React interface
-tests/       418 tests, no network required
+tests/       498 tests, no network required
 docs/covers/ thumbnails for this document
 ```
 

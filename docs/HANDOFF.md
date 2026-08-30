@@ -1,13 +1,15 @@
 # Handoff: finishing Ollie on the 48 GB Mac
 
-Everything in this document is written for the machine that will run the live demo. It was
-built and tested on an 8 GB Intel MacBook Pro, where a single model turn takes about five
-minutes, so the full flow has been verified against a scripted test double but **never
-watched end to end against a real model**. That is the single most important thing you are
-about to do.
+Everything in this document is written for the machine that runs the live demo. The engine
+was built on an 8 GB Intel MacBook Pro, where prompt evaluation alone costs about nine
+minutes a turn, so the logic there is verified against a scripted test double rather than
+against inference.
 
-Read section 6 first if you are short of time. Sections 1 to 5 get you running; section 6
-is where the actual unknowns are.
+It **has** since been run end to end against qwen3:14b on the demo machine, and that run
+paid for itself: it turned up self-repetition under pressure, a reasoning leak, and two
+style rules that are now in the filter. Sections 1 to 5 get a fresh machine running.
+Section 6 is the walkthrough, and it is still the thing worth doing slowly after any
+change, because a scripted double cannot tell you how the character actually reads.
 
 ---
 
@@ -196,10 +198,11 @@ OLLAMA_HOST=http://other-machine.local:11434 ./scripts/ollie
 
 ## 6. Walk the whole flow. This is the part that matters.
 
-Nobody has watched these five screens work against a real model. Go through them slowly and
-write down anything that looks wrong. Expected timings below are for a 14B model on Apple
-Silicon; if something takes three times longer than stated, it is probably stuck rather than
-slow.
+Go through all five screens slowly and write down anything that looks wrong. The flow has
+been walked against qwen3:14b, so this is a regression check rather than a first contact,
+but it is the check that catches what tests cannot: whether the character reads as a person.
+Expected timings below are for a 14B on Apple Silicon; if something takes three times longer
+than stated it is probably stuck rather than slow.
 
 ### 6.1 Opening screen
 
@@ -342,11 +345,11 @@ Things I know are incomplete. Fix in this order if there is time.
    scanner where a subtle parity miss leaks an identifier, is a bad trade. It is written
    down here so nobody re-derives it.
 
-5. **CI is not on GitHub.** `.github/workflows/ci.yml` exists locally but Coflazo's token
-   lacks `workflow` scope. Either push it with a token that has that scope, or paste the
-   file through the GitHub web interface. It runs the suite, builds the C++ on both Linux
-   and macOS so parity is tested rather than assumed, and fails the build if a book,
-   database or model weight is ever committed.
+5. **CI is live.** `.github/workflows/ci.yml` runs the suite on Linux and macOS, builds
+   the C++ and asserts the native path actually loaded before trusting the parity run,
+   typechecks and builds the interface, and fails the build if a book, database or model
+   weight is ever tracked, including one renamed to dodge the extension check. Watch it on
+   the Actions tab after a push rather than finding out by hand.
 
 ---
 
@@ -448,7 +451,7 @@ live.
 5. **Open "why this reply".** Show the memories and books that fed it. (20s)
 6. **Force the rollover, read the capsule, start episode two, ask about the earlier
    detail.** It remembers. (40s)
-7. **Close on the repository.** 418 tests, no network needed, C++ with a Python twin and a
+7. **Close on the repository.** 498 tests, no network needed, C++ with a Python twin and a
    randomised parity test, and a CI job that refuses to let a book into the repo. (20s)
 
 For the one-minute video, cut steps 4 and 6 only. Pushback and recall are the two things
