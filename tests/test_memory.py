@@ -187,6 +187,44 @@ async def test_fact_survives_rollover_into_next_episode(
         "the fact did not survive into the next episode"
 
 
+def test_an_edited_capsule_drops_what_the_user_removed() -> None:
+    """The rollover dialog promises that what you delete is genuinely gone.
+
+    The approve endpoint renders whichever capsule the client sends, so an edit made in the
+    interface has to be absent from the text episode two opens with. This is the assertion
+    behind the promise: a dialog that showed edit controls but still sent the model's draft
+    would make that copy a lie, and the user would have no way to tell.
+    """
+    drafted = {
+        "recent_summary": "They talked about the flat, and about their sister's diagnosis.",
+        "unresolved_tension": "whether they are going to call their sister back",
+        "open_threads": ["the flat viewing on Saturday", "calling their sister back"],
+        "shared_moments": ["the argument about the flat", "their sister's diagnosis"],
+        "carried_tics": ["says 'anyway' when changing the subject"],
+        "excluded_memory_ids": [],
+    }
+
+    # What the user does in the dialog: rewrite the summary, drop the tension outright, and
+    # delete every reference to the diagnosis they did not want carried forward.
+    edited = {
+        **drafted,
+        "recent_summary": "They talked about the flat.",
+        "unresolved_tension": None,
+        "open_threads": ["the flat viewing on Saturday"],
+        "shared_moments": ["the argument about the flat"],
+    }
+
+    opening = memory.capsule_to_opening_context(edited)
+
+    assert "diagnosis" not in opening.lower(), "a deleted moment reached the next episode"
+    assert "sister" not in opening.lower(), "a deleted thread reached the next episode"
+
+    # The edit is a scalpel, not a reset: everything kept must still be carried.
+    assert "flat" in opening.lower()
+    assert "Saturday" in opening
+    assert "anyway" in opening
+
+
 @pytest.mark.asyncio
 async def test_unattributed_memories_are_dropped(store: Store, profile: str,
                                                  session: dict) -> None:

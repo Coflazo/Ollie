@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import random
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -165,3 +166,38 @@ def test_memory_scoring_parity_on_random_input(seed: int) -> None:
 def test_physical_ram_is_plausible() -> None:
     ram = loader.physical_ram()
     assert ram == 0 or 1e9 < ram < 2e12, f"implausible RAM reading: {ram}"
+
+
+# ------------------------------------------------------------------ stale libraries
+
+
+def test_a_stale_library_falls_back_instead_of_crashing(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """A library built before a function was added must not take the application down.
+
+    This is the ordinary state of a working tree after a pull that touched the C++, because
+    the launcher only builds when the file is absent. Such a library loads perfectly well
+    and then raises AttributeError at the first call to the symbol it does not have. The
+    Python twin exists so the native path is never load-bearing, and that guarantee is only
+    real if the loader treats an incomplete library as an absent one.
+    """
+
+    class Incomplete:
+        """Loads cleanly, but predates `ollie_score_memories`."""
+
+        def __getattr__(self, name: str):
+            if name == "ollie_score_memories":
+                raise AttributeError(f"dlsym(0x0, {name}): symbol not found")
+            return types.SimpleNamespace(restype=None, argtypes=None)
+
+    monkeypatch.setattr(loader, "_lib", None)
+    monkeypatch.setattr(loader, "_library_path", lambda: Path(__file__))
+    monkeypatch.setattr(loader.ctypes, "CDLL", lambda _path: Incomplete())
+
+    assert loader._load() is None, "an incomplete library was accepted as usable"
+    assert not loader.available()
+    assert "stale" in loader.status(), loader.status()
+
+    # And the point of all that: the function still returns the right answer.
+    args = _memory_args(random.Random(1), 6)
+    assert loader.score_memories(*args) == loader.py_score_memories(*args)

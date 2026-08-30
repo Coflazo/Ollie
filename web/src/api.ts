@@ -97,6 +97,36 @@ export type MemoryRecord = {
   requires_confirmation: number
 }
 
+/** What `market.build_preview` returns. Typed here with every other response shape so the
+ *  marketplace screen does not have to restate it and cast its way back to safety. */
+export type MarketPreview = {
+  simulation: boolean
+  uploaded: boolean
+  paid: boolean
+  buyer: string
+  buyer_is_fictional: boolean
+  banner: string
+  purpose: string
+  turn_count: number
+  removed_by_kind: Record<string, number>
+  excluded_special_category: number
+  sample: { role: string; text: string; removed: number }[]
+  linkability: {
+    score: number
+    level: 'low' | 'medium' | 'high'
+    quasi_identifiers: { kind: string; text: string }[]
+    residual_direct: { kind: string; text: string }[]
+    note: string
+  }
+  quote_eur: number
+  policy_version: string
+}
+
+export type Receipt = {
+  receipt_id: string
+  path: string
+}
+
 export type Capsule = {
   persona_name: string
   recent_summary: string
@@ -179,8 +209,7 @@ export const api = {
       capsule,
     }),
 
-  marketPreview: () => post<Record<string, any>>('/v1/marketplace/preview'),
+  marketPreview: () => post<MarketPreview>('/v1/marketplace/preview'),
 
-  marketAccept: (preview: Record<string, unknown>) =>
-    post<{ receipt_id: string; path: string }>('/v1/marketplace/accept', preview),
+  marketAccept: (preview: MarketPreview) => post<Receipt>('/v1/marketplace/accept', preview),
 }
