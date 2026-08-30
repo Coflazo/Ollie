@@ -247,6 +247,12 @@ mention.
 
 ## Rules
 
+**Before anything else, check "seeking" above.** If it names who this user wants to meet,
+then all three characters are that, every one of them, and their names and pronouns both
+say so. Not two of three. Not one of each as a compromise. A person who asked to meet men
+and is shown a woman has been told their answer did not matter, and that is worse than
+never having asked. If nothing was given, vary it across the three.
+
 Every character is a specific person, not a type. Give them:
 
 - A **special interest** that is oddly specific and genuinely theirs. Not "music" —
@@ -264,11 +270,54 @@ All characters are adults, 24 to 40. Do not describe anyone's body. Do not make 
 therapist, a fixer, or endlessly patient — a character who absorbs everything without
 reacting is not a person.
 
+Every character matches "seeking" if it was given. This is the second time you are being
+told, because it is the one thing here the user explicitly asked for.
+
 Every one of them is neurodivergent in some specific way, and it should show in how they
 talk rather than being stated as a label.
 
 Return JSON matching the schema.
 """
+
+
+# Only the unambiguous answers. Anything else — "anyone", "both", a sentence — is left to
+# the prompt, because guessing at what someone meant is worse than not constraining.
+_SEEKING_PRONOUNS: dict[str, list[str]] = {
+    "women": ["she/her"], "woman": ["she/her"], "female": ["she/her"],
+    "females": ["she/her"], "girls": ["she/her"], "w": ["she/her"], "f": ["she/her"],
+    "men": ["he/him"], "man": ["he/him"], "male": ["he/him"], "males": ["he/him"],
+    "guys": ["he/him"], "boys": ["he/him"], "m": ["he/him"],
+    "nonbinary": ["they/them"], "non-binary": ["they/them"], "enby": ["they/them"],
+}
+
+
+def _schema_for(seeking: str) -> dict:
+    """The candidate schema, with pronouns pinned when the user was unambiguous.
+
+    Asking was not enough. Told "men", the model returned a woman or a they/them in two
+    runs out of two, and strengthening the wording twice did not move it — there is a
+    pull towards writing women for a dating simulator that instructions do not overcome.
+    Ollama enforces the schema during decoding, so an enum makes the mismatch impossible
+    rather than merely discouraged.
+
+    Pronouns are moved ahead of the name for the same reason: the model commits to them
+    first and then picks a name that fits, instead of writing "Nora" and being forced into
+    he/him afterwards.
+    """
+    allowed = _SEEKING_PRONOUNS.get(seeking.strip().lower())
+    if not allowed:
+        return CANDIDATE_SCHEMA
+
+    item = CANDIDATE_SCHEMA["properties"]["candidates"]["items"]  # type: ignore[index]
+    props = {"pronouns": {"type": "string", "enum": allowed},
+             **{k: v for k, v in item["properties"].items() if k != "pronouns"}}
+    return {
+        **CANDIDATE_SCHEMA,
+        "properties": {
+            "candidates": {**CANDIDATE_SCHEMA["properties"]["candidates"],  # type: ignore[index]
+                           "items": {**item, "properties": props}},
+        },
+    }
 
 
 async def generate_candidates(client: Ollama, model: str, profile: TraitProfile,
@@ -300,7 +349,8 @@ async def generate_candidates(client: Ollama, model: str, profile: TraitProfile,
         archetypes=archetypes,
     )
     data = await client.chat_json(model, [{"role": "user", "content": prompt}],
-                                  CANDIDATE_SCHEMA, num_ctx=num_ctx)
+                                  _schema_for(str(preferences.get("seeking") or "")),
+                                  num_ctx=num_ctx)
 
     cards = (data or {}).get("candidates") or []
     out: list[dict] = []

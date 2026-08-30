@@ -24,6 +24,8 @@ export function Onboarding({ onDone }: { onDone: (d: Done) => void }) {
   const [answers, setAnswers] = useState<Record<string, number>>({})
   const [name, setName] = useState('')
   const [knownType, setKnownType] = useState('')
+  const [pronouns, setPronouns] = useState('')
+  const [seeking, setSeeking] = useState('')
   const [mature, setMature] = useState(false)
   const [adult, setAdult] = useState(false)
 
@@ -48,7 +50,14 @@ export function Onboarding({ onDone }: { onDone: (d: Done) => void }) {
     try {
       const res = await api.submitQuestionnaire(
         answers,
-        { content_mode: mature ? 'mature' : 'general', adult_confirmed: adult },
+        {
+          content_mode: mature ? 'mature' : 'general',
+          adult_confirmed: adult,
+          pronouns: pronouns.trim(),
+          // Spent on writing the candidates, then dropped server-side rather than
+          // stored: see submit_questionnaire in api.py.
+          seeking: seeking.trim(),
+        },
         name,
         knownType,
       )
@@ -148,7 +157,55 @@ export function Onboarding({ onDone }: { onDone: (d: Done) => void }) {
               ))}
             </select>
           </label>
+
+          {/* Free text rather than a list. Any list of genders is a list someone is not
+              on, and the model reads it as words anyway. */}
+          <label className="space-y-1.5">
+            <span className="text-[12px] text-[var(--color-faint)]">
+              your pronouns (optional)
+            </span>
+            <input
+              value={pronouns}
+              onChange={(e) => setPronouns(e.target.value)}
+              list="pronoun-options"
+              placeholder="she/her, he/him, they/them…"
+              className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)]
+                         px-3 py-2 text-sm outline-none placeholder:text-[var(--color-faint)]
+                         focus:border-[var(--color-faint)]"
+            />
+            <datalist id="pronoun-options">
+              <option value="she/her" />
+              <option value="he/him" />
+              <option value="they/them" />
+            </datalist>
+          </label>
+
+          <label className="space-y-1.5">
+            <span className="text-[12px] text-[var(--color-faint)]">
+              who you want to meet (optional)
+            </span>
+            <input
+              value={seeking}
+              onChange={(e) => setSeeking(e.target.value)}
+              list="seeking-options"
+              placeholder="women, men, anyone…"
+              className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)]
+                         px-3 py-2 text-sm outline-none placeholder:text-[var(--color-faint)]
+                         focus:border-[var(--color-faint)]"
+            />
+            <datalist id="seeking-options">
+              <option value="women" />
+              <option value="men" />
+              <option value="anyone" />
+            </datalist>
+          </label>
         </div>
+
+        <p className="mt-3 text-[11px] leading-relaxed text-[var(--color-faint)]">
+          Who you want to meet decides who gets written, and then it is dropped. It is not
+          saved to disk with the rest of your profile, because who you are attracted to is
+          the one answer here that would be special-category data if it were kept.
+        </p>
 
         <Panel className="mt-6">
           <label className="flex cursor-pointer items-start gap-3">
