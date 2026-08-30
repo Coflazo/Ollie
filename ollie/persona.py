@@ -3,8 +3,8 @@
 Three stages:
 
 1. A ten-item questionnaire gives a cheap Big Five estimate.
-2. A short adaptive interview reads the things a questionnaire cannot — whether someone is
-   anxious, ambitious, insecure, conflict-avoidant — from how they answer rather than
+2. A short adaptive interview reads the things a questionnaire cannot, whether someone is
+   anxious, ambitious, insecure, conflict-avoidant, from how they answer rather than
    what they claim. This is the part that makes the resulting character feel aimed at
    them rather than assembled from a form.
 3. Both feed candidate generation. The model proposes cards; deterministic code validates
@@ -140,7 +140,7 @@ class TraitProfile:
         for name, value in strong:
             label = name.replace("_", " ")
             lines.append(f"- {'high' if value >= 0.6 else 'low'} {label}"
-                         + (f" — {self.evidence[name]}" if self.evidence.get(name) else ""))
+                         + (f", {self.evidence[name]}" if self.evidence.get(name) else ""))
         if self.texture:
             lines.append("- specifics worth knowing: " + "; ".join(self.texture[:3]))
         if self.dodges:
@@ -228,7 +228,7 @@ date, not profiles.
 
 ## Who they are
 
-The user's type is **{user_type}** — {user_type_desc}.
+The user's type is **{user_type}**, {user_type_desc}.
 
 Big Five (0 to 1):
 {big_five}
@@ -242,7 +242,7 @@ What they said they want:
 ## The three characters, and why these types
 
 Each character below is a specific one of the sixteen types, chosen for how it fits this
-user. Write each one *as* that type — the type is their cognitive shape, not a label to
+user. Write each one *as* that type. The type is their cognitive shape, not a label to
 mention.
 
 {archetypes}
@@ -257,9 +257,10 @@ never having asked. If nothing was given, vary it across the three.
 
 Every character is a specific person, not a type. Give them:
 
-- A **special interest** that is oddly specific and genuinely theirs. Not "music" —
-  "the exact moment a live recording catches the room instead of the band". Not "cooking" —
-  "why every Turkish coffee recipe lies about grind size". This is what they info-dump about.
+- A **special interest** that is oddly specific and genuinely theirs. Not "music" but
+  "the exact moment a live recording catches the room instead of the band". Not "cooking"
+  but "why every Turkish coffee recipe lies about grind size". This is what they
+  info-dump about.
 - **Verbal tics**: two or three concrete habits. A word they overuse, a way they open, a
   thing they do when uncomfortable. These must be reproducible in text.
 - A **pushback style**: how they disagree. Everyone here disagrees. One might go quiet and
@@ -269,7 +270,7 @@ Every character is a specific person, not a type. Give them:
 - **Chemistry reasons**: why it would work anyway.
 
 All characters are adults, 24 to 40. Do not describe anyone's body. Do not make anyone a
-therapist, a fixer, or endlessly patient — a character who absorbs everything without
+therapist, a fixer, or endlessly patient: a character who absorbs everything without
 reacting is not a person.
 
 Every character matches "seeking" if it was given. This is the second time you are being
@@ -282,7 +283,7 @@ Return JSON matching the schema.
 """
 
 
-# Only the unambiguous answers. Anything else — "anyone", "both", a sentence — is left to
+# Only the unambiguous answers. Anything else ("anyone", "both", a sentence) is left to
 # the prompt, because guessing at what someone meant is worse than not constraining.
 _SEEKING_PRONOUNS: dict[str, list[str]] = {
     "women": ["she/her"], "woman": ["she/her"], "female": ["she/her"],
@@ -297,7 +298,7 @@ def _schema_for(seeking: str) -> dict:
     """The candidate schema, with pronouns pinned when the user was unambiguous.
 
     Asking was not enough. Told "men", the model returned a woman or a they/them in two
-    runs out of two, and strengthening the wording twice did not move it — there is a
+    runs out of two, and strengthening the wording twice did not move it, then there is a
     pull towards writing women for a dating simulator that instructions do not overcome.
     Ollama enforces the schema during decoding, so an enum makes the mismatch impossible
     rather than merely discouraged.
@@ -335,7 +336,7 @@ async def generate_candidates(client: Ollama, model: str, profile: TraitProfile,
     matches = types16.rank_matches(resolved, limit=3)
 
     archetypes = "\n".join(
-        f"{i + 1}. **{m.type_code}** — {types16.DESCRIPTIONS[m.type_code]}. "
+        f"{i + 1}. **{m.type_code}**, {types16.DESCRIPTIONS[m.type_code]}. "
         f"Their characteristic failure mode: {types16.FRICTION[m.type_code]}. "
         f"Why this one: {m.reason}"
         for i, m in enumerate(matches))

@@ -401,7 +401,7 @@ closes episode one, so the recall beat has to come from memory rather than from 
 transcript.
 
 Restart the server afterwards. The boot screen will offer **back to Ilya** instead of
-**start**, and drop you straight into episode two. Then ask:
+**start**: and drop you straight into episode two. Then ask:
 
 > what were we going to do about thursday
 

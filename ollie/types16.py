@@ -13,7 +13,7 @@ source for the matching rules below. Two things in that book drive the weights:
 
 So S/N is weighted for similarity far above everything else, T/F and J/P get a mild
 complementarity bonus, and E/I gets a small one. This is a heuristic drawn from a book,
-presented to the user as a starting point they can override — not a scientific claim, and
+presented to the user as a starting point they can override, not a scientific claim, and
 the UI says so.
 
 Type is also never forced: a user who already knows their type can enter it, and a user

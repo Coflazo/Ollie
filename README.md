@@ -89,7 +89,7 @@ cannot correct.
 Where the interview contradicts the questionnaire, the interview wins. People answer forms
 as who they wish they were.
 
-**Then the type**, estimated from both, with its confidence shown per axis. If you already
+**Then the type**: estimated from both, with its confidence shown per axis. If you already
 know your four letters, enter them and skip the guessing entirely.
 
 **Then the person.** Not a profile. A character with an oddly specific obsession they go too
@@ -195,7 +195,7 @@ explicit at ingest time and cannot be retrieved outside mature mode.
 Sounding human is enforced in code, not hoped for in a prompt. `ollie/style.py` holds the
 machine phrases as patterns with severities: *"I'm here for you"*, *"that's a great
 question"*, *"let me know if"*, the rule of three, "it's not just X, it's Y", `delve`,
-`tapestry`, `testament`, more than one em dash, and four replies in a row ending in a
+`tapestry`: `testament`, more than one em dash, and four replies in a row ending in a
 question. Hard matches are rejected and regenerated with the reason named back to the model.
 Soft ones are repaired in place.
 

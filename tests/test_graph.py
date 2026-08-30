@@ -1,7 +1,7 @@
 """Graph consolidation, with and without the Graphify CLI present.
 
 The point of these tests is the substitutability claim in the README: whichever tool wrote
-`graph.json`, everything downstream behaves the same. If that stops being true, Graphify has
+`graph.json`: everything downstream behaves the same. If that stops being true, Graphify has
 quietly become a dependency instead of an enhancer.
 """
 

@@ -1,6 +1,6 @@
 """ctypes binding for libollie_native, with a pure-Python implementation of every function.
 
-The fallbacks are not an afterthought — they are the reference semantics. The C++ is an
+The fallbacks are not an afterthought, they are the reference semantics. The C++ is an
 optimisation that must agree with them, and `tests/test_native_parity.py` is what holds it
 to that. Ollie is fully functional with `available() == False`.
 """
@@ -41,7 +41,7 @@ def _load() -> ctypes.CDLL | None:
 
     # Binding every symbol here rather than at the call site is what makes a stale library
     # detectable. A .dylib built before a function was added loads perfectly well and then
-    # raises AttributeError on the first call to the symbol it is missing — which is worse
+    # raises AttributeError on the first call to the symbol it is missing, which is worse
     # than having no library at all, because the Python fallbacks exist precisely so that a
     # missing native path costs nothing but speed. `scripts/ollie` only builds when the
     # file is absent, so this is the ordinary state of a working tree after a pull that

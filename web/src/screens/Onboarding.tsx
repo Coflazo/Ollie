@@ -94,7 +94,7 @@ export function Onboarding({ onDone }: { onDone: (d: Done) => void }) {
         <motion.div {...riseIn}>
           <h2 className="text-2xl font-medium tracking-tight">First, roughly who you are</h2>
           <p className="mt-2 text-[15px] text-[var(--color-muted)]">
-            Ten statements. Answer how you actually are, not how you&rsquo;d like to be — the
+            Ten statements. Answer how you actually are, not how you&rsquo;d like to be, the
             interview afterwards will catch the difference anyway.
           </p>
         </motion.div>
@@ -222,7 +222,7 @@ export function Onboarding({ onDone }: { onDone: (d: Done) => void }) {
               <span className="text-[var(--color-text)]">Mature mode</span>
               <span className="text-[var(--color-muted)]">
                 {' '}
-                — explicit content is available. Off by default. You can switch it back at any
+, explicit content is available. Off by default. You can switch it back at any
                 point, and nothing sexual is exported anywhere.
               </span>
             </span>
@@ -295,7 +295,7 @@ export function Onboarding({ onDone }: { onDone: (d: Done) => void }) {
             <Waiting
               label="reading everything you said"
               hint="working out your type, ranking all sixteen, and writing three people to
-                    match. this is the long one — a minute or so."
+                    match. this is the long one, a minute or so."
             />
           ) : (
             <Waiting label="thinking about that" />

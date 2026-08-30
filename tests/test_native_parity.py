@@ -2,8 +2,8 @@
 
 Ollie picks the native implementation when the shared library loads and the Python one
 when it does not. That is only safe if the two are indistinguishable, so these tests run
-both on the same inputs — including randomised ones, which is where hand-ported code
-actually diverges — and compare.
+both on the same inputs, including randomised ones, which is where hand-ported code
+actually diverges, and compare.
 
 The suite passes whether or not the library is built. When it is missing, the native calls
 fall through to Python and the comparisons become trivially true; `test_native_is_built`
@@ -27,7 +27,7 @@ WORDS = ["the", "quick", "brown", "fox", "attachment", "anxious", "repair", "tru
 
 
 def test_native_is_built() -> None:
-    """Not an assertion about correctness — a report so CI output says which path ran."""
+    """Not an assertion about correctness, a report so CI output says which path ran."""
     print(f"\nnative status: {loader.status()}")
     assert loader.status()
 

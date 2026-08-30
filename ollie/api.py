@@ -213,7 +213,7 @@ async def submit_questionnaire(body: Questionnaire) -> dict:
     # Who someone wants to be matched with is their sexual orientation, which is Article 9
     # special-category data, and `settings_json` is one of the few columns stored in the
     # clear. So it is held for this process only, spent on writing the three characters,
-    # and never written down — the personas it produces are the durable artifact. Popping
+    # and never written down, the personas it produces are the durable artifact. Popping
     # it here rather than filtering later is deliberate: the raw dict below goes to disk
     # whole, so anything still in it is stored.
     S.seeking = str(prefs.pop("seeking", "")).replace("\n", " ").strip()[:120]

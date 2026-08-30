@@ -3,9 +3,9 @@
 "Sounds like a person, not a chatbot" is the scored axis and it is usually left to vibes.
 Here it is a list of patterns with a test file attached. Two severities:
 
-- `HARD` — the reply is unusable as-is and generation is retried once with the offending
+- `HARD`: the reply is unusable as-is and generation is retried once with the offending
   pattern named in the retry instruction.
-- `SOFT` — mechanically repairable, so we repair it and move on rather than paying for
+- `SOFT`: mechanically repairable, so we repair it and move on rather than paying for
   another 15-second generation on a 3B model.
 
 Running this in code rather than as a second LLM pass costs about 3 ms instead of about
@@ -211,8 +211,8 @@ def repair_soft(text: str) -> str:
 # reproduced its previous answer at well over 90%, while genuinely restating an argument in
 # new words lands far below this.
 REPETITION_THRESHOLD = 0.75
-# Only paragraphs are judged. Conversational lines recur naturally — "right. and what
-# happens when she says no." is a normal thing to land on twice — and the observed failure
+# Only paragraphs are judged. Conversational lines recur naturally, "right. and what
+# happens when she says no." is a normal thing to land on twice. The observed failure
 # was a forty-five word answer reproduced whole, so the bar sits above any single beat.
 _MIN_WORDS_FOR_REPETITION = 20
 
@@ -223,7 +223,7 @@ def repetition_ratio(text: str, recent: list[str]) -> float:
     """How close this reply is to the nearest recent one, 0 to 1.
 
     Short replies are exempt, and that exemption is the important half. "hm.", "go on
-    then." and a character's verbal tics are *supposed* to recur — a filter that punished
+    then." and a character's verbal tics are *supposed* to recur; a filter that punished
     them would flatten exactly the voice this module exists to protect.
 
     What this catches is the failure that looks like the product working: pushed to hold a
@@ -257,7 +257,7 @@ def shared_opening(text: str, recent: list[str]) -> int:
     phrase and still be about entirely different things, so `repetition_ratio` stays low
     while the conversation reads like a broken record. Only the first words are compared.
 
-    Short replies are exempt for the same reason as there — a conversational line is
+    Short replies are exempt for the same reason as there: a conversational line is
     allowed to recur, and it is the long reply with a bolted-on stock opening that is the
     tell.
     """

@@ -182,7 +182,7 @@ def test_who_you_want_to_meet_is_never_written_to_disk(tmp_path) -> None:
     Sexual orientation is Article 9 special-category data and `settings_json` is one of the
     few columns held in the clear, so "seeking" is used to write the three characters and
     then discarded. The whole preferences dict is persisted verbatim, so the only thing
-    keeping that promise true is that the key is removed before it gets there — which is
+    keeping that promise true is that the key is removed before it gets there, which is
     exactly the kind of thing a later refactor undoes without noticing.
     """
     from ollie.store import Store

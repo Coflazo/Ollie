@@ -1,7 +1,7 @@
 """Thin async client for the local Ollama API.
 
-Deliberately small. Ollie needs five things from Ollama — is it alive, what is installed,
-generate, generate-as-JSON, and embed — and wrapping more than that would be inventing a
+Deliberately small. Ollie needs five things from Ollama, is it alive, what is installed,
+generate, generate-as-JSON, and embed, and wrapping more than that would be inventing a
 dependency we then have to maintain.
 """
 

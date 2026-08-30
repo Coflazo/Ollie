@@ -110,7 +110,7 @@ export function Thinking({ className = '' }: { className?: string }) {
  *  Local inference is slow and wildly uneven: four interview turns land in under two
  *  seconds each and the fifth takes eighty, because that one also extracts your traits and
  *  writes three people. Identical silence for both is what makes the long one read as a
- *  crash — the honest fix is to say which wait this is.
+ *  crash: the honest fix is to say which wait this is.
  *
  *  The elapsed count appears only once a wait has gone on long enough to worry about, so
  *  fast steps stay quiet. It is a sign of life, not a progress bar: nothing here can

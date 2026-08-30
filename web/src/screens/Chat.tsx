@@ -254,7 +254,7 @@ export function Chat({ persona, model }: { persona: Candidate; model: string | n
               </div>
             )}
             {/* Below lg the rails are already hidden, so leaving focus mode there would
-                take this strip away and give nothing back — including the only control
+                take this strip away and give nothing back, including the only control
                 that returns it. The way out is offered where there is something to go to. */}
             <button
               onClick={toggleFocus}
@@ -569,8 +569,8 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
 
 /** A line of the capsule the user can actually rewrite.
  *
- *  Borderless at rest so the dialog still reads as prose — this is the artifact you read
- *  out loud during the demo — and it only shows its edges once you are in it. */
+ *  Borderless at rest so the dialog still reads as prose, this is the artifact you read
+ *  out loud during the demo: and it only shows its edges once you are in it. */
 function EditableLine({
   label,
   value,

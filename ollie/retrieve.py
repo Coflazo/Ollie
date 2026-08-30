@@ -2,7 +2,7 @@
 
 Two pools with different rules. Corpus passages are background understanding and are
 cheap to be wrong about. Personal memories are the user's own words and are expensive to
-be wrong about — surfacing a sensitive memory in a casual moment is worse than surfacing
+be wrong about, surfacing a sensitive memory in a casual moment is worse than surfacing
 nothing at all, so sensitive records carry a penalty they have to earn their way past.
 
 Ranking is BM25 from FTS5 fused with signals SQLite cannot express. The fusion loop is

@@ -1,7 +1,7 @@
 """Test doubles.
 
-The whole turn pipeline is tested without touching a model. That is not only for speed —
-it is the only way to assert deterministic things about a stochastic system. `FakeOllama`
+The whole turn pipeline is tested without touching a model. That is not only for speed.
+It is the only way to assert deterministic things about a stochastic system. `FakeOllama`
 returns scripted replies, so a test can prove that a reply containing "I'm here for you"
 gets rejected and regenerated, which is impossible to assert reliably against real
 inference.

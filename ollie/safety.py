@@ -2,9 +2,9 @@
 
 Three checks, in order of when they fire:
 
-- `check_input`  — before generation, on what the user sent
-- `check_persona` — at persona compile time, on what the model proposed as a character
-- `check_output` — after generation and after the style pass, on what will be displayed
+- `check_input`: before generation, on what the user sent
+- `check_persona`: at persona compile time, on what the model proposed as a character
+- `check_output`: after generation and after the style pass, on what will be displayed
 
 Everything here fails closed. When a check is unsure it blocks and says why, because the
 cost of a false positive is one regenerated message and the cost of a false negative is
@@ -151,7 +151,7 @@ _JAILBREAK = re.compile(
 CRISIS_REPLY = (
     "I'm stopping the scene for a second, because that matters more than it.\n\n"
     "I'm a character in an app on your computer. I can't actually help with this, and "
-    "pretending otherwise would be worse than useless. Please tell someone real — a "
+    "pretending otherwise would be worse than useless. Please tell someone real: a "
     "friend, someone in your family, or a crisis line. In the Netherlands that's 113 "
     "(or 0800-0113), and 112 for an emergency. Wherever you are, there is a number.\n\n"
     "I'll still be here after. No pressure to say anything else about it."
@@ -170,7 +170,7 @@ def check_input(text: str, mature_mode: bool, adult_confirmed: bool) -> Decision
         if pattern.search(text):
             return Decision(
                 Action.REFUSE, f"hard_block:{tag}",
-                "No. Not that one — pick something else and I'm still here.", [tag])
+                "No. Not that one, pick something else and I'm still here.", [tag])
 
     if _minor_coded(text) and _SEXUAL.search(text):
         return Decision(

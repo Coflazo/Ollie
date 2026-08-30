@@ -259,7 +259,7 @@ because a future reader deserves to know the trade was measured rather than assu
 
 ### 3.9 Native code
 
-`native/ollie_native.cpp`, one translation unit, one `clang++` invocation, no CMake. CMake
+`native/ollie_native.cpp`: one translation unit, one `clang++` invocation, no CMake. CMake
 is a good choice for a project with many targets; this has one, so a build system would be
 ceremony.
 
@@ -278,7 +278,7 @@ checks cheap enough to run on every single turn instead of occasionally. That is
 
 ### 3.10 Safety
 
-`ollie/safety.py`, enforced above any persona and tested.
+`ollie/safety.py`: enforced above any persona and tested.
 
 Adult age is validated in code at persona compile time, so an under-18 character cannot exist
 regardless of what a model proposes. Hard blocks for minors, coercion framed as consent,

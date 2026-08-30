@@ -16,7 +16,7 @@ Cite them. A record you cannot attribute is a record you must not create.
 month; if not, skip it.
 
 **A correction supersedes.** If the user corrected something, record it as `correction`
-and name the fact it replaces. Corrections are high confidence by definition — someone
+and name the fact it replaces. Corrections are high confidence by definition, someone
 took the trouble to fix it.
 
 **Sensitivity is not optional.** Anything touching sex, health, mental health, religion,
@@ -32,26 +32,26 @@ was left hanging.
 Propose a delta for each dimension, between -0.08 and +0.08. Most turns are near zero.
 Only move a number when the exchange genuinely moved something.
 
-- `warmth` — how affectionate the exchange was
-- `trust` — did they open up, or did something break
-- `playfulness` — teasing, jokes, lightness
-- `emotional_depth` — how far past small talk this went
-- `romantic_tension` — charge, not explicitness
-- `conflict_tension` — friction, unresolved irritation
+- `warmth`: how affectionate the exchange was
+- `trust`: did they open up, or did something break
+- `playfulness`: teasing, jokes, lightness
+- `emotional_depth`: how far past small talk this went
+- `romantic_tension`: charge, not explicitness
+- `conflict_tension`: friction, unresolved irritation
 
 A user correcting you is not a loss of trust. Being corrected is how trust gets built.
 Disagreement is not conflict; only unresolved friction raises `conflict_tension`.
 
 ## Kinds
 
-`user_fact`, `preference`, `boundary`, `shared_event`, `promise`, `open_thread`,
-`correction`, `persona_fact`
+`user_fact`: `preference`, `boundary`, `shared_event`, `promise`, `open_thread`,
+`correction`: `persona_fact`
 
 `persona_fact` is for things the character said about itself that should stay consistent.
 Never file something the character invented as a fact about the user.
 
 {% if existing %}
-## Already known — do not duplicate these
+## Already known, do not duplicate these
 
 {% for m in existing %}- [{{ m.kind }}] {{ m.subject }} {{ m.predicate }} {{ m.value }}
 {% endfor %}
@@ -65,4 +65,4 @@ Only record something here if it changed. If it changed, that is a `correction`.
 {% endfor %}
 
 Respond with JSON matching the required schema. If nothing is worth recording, return an
-empty `memories` list — that is a normal and correct outcome.
+empty `memories` list, that is a normal and correct outcome.

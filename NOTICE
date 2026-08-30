@@ -29,15 +29,15 @@ Personality items
     The onboarding questionnaire uses items in the style of the International Personality
     Item Pool (https://ipip.ori.org), whose materials are in the public domain.
 
-Humanizer — https://github.com/blader/humanizer (MIT)
+Humanizer, https://github.com/blader/humanizer (MIT)
     An agent skill, not a runtime dependency. Its catalogue of AI writing patterns
     informed the rule set in ollie/style.py, which is our own implementation in code.
 
-Graphify — https://github.com/safishamsi/graphify (pip: graphifyy)
+Graphify, https://github.com/safishamsi/graphify (pip: graphifyy)
     An optional extra, used only over sanitised episode cards. Not bundled, not required,
     and not on any code path the product depends on.
 
-Ollama — https://ollama.com
+Ollama, https://ollama.com
     Spoken to over its local HTTP API. Not bundled. Each model carries its own licence,
     which the user accepts when they download it.
 

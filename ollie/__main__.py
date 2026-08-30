@@ -1,4 +1,4 @@
-"""`python -m ollie` — start the whole thing, or run a maintenance command.
+"""`python -m ollie`, start the whole thing, or run a maintenance command.
 
 Deliberately not a CLI framework. There are four verbs and argparse handles four verbs.
 """

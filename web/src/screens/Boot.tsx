@@ -61,7 +61,7 @@ export function Boot({
               <div className="border-t border-[var(--color-line)] pt-3 text-[13px]">
                 {!probe.ollama ? (
                   <p className="text-[var(--color-warm)]">
-                    Ollama isn&rsquo;t running. Start it, then reload — Ollie won&rsquo;t install
+                    Ollama isn&rsquo;t running. Start it, then reload. Ollie won&rsquo;t install
                     anything for you without asking.
                   </p>
                 ) : probe.model ? (
