@@ -1,19 +1,43 @@
 @import 'tailwindcss';
 
-/* Warm, low-light, private. The opposite of a dating app: no cards to swipe, no red
-   accents, nothing that reads as a game with a score to maximise. */
+/* Geist, self-hosted from the npm package. Never Inter: it is the application-font
+   default that makes an interface read as generic, and it is on the banned list of both
+   design references this project follows. */
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* Warm, low-light, private. Never pure black: #0a0a0a and its neighbours have a physical
+   quality that #000 lacks. The single accent is the only saturated colour in the app, so
+   it always means "this is the thing". */
 @theme {
-  --color-ink: #0d0b0a;
-  --color-surface: #17130f;
-  --color-raised: #211b16;
-  --color-line: #332a22;
+  --color-ink: #0c0a09;
+  --color-surface: #16120f;
+  --color-raised: #1f1a15;
+  --color-line: #2e2721;
   --color-warm: #e8825c;
   --color-warm-dim: #a45a3e;
-  --color-text: #f2ece5;
-  --color-muted: #9a8d80;
-  --color-faint: #6b6055;
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --color-text: #f4efe9;
+  --color-muted: #a19487;
+  --color-faint: #6f645a;
+
+  --font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-display: 'Geist', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Tells the device UI (scrollbars, form controls, caret) that this is a dark surface. */
+html {
+  color-scheme: dark;
 }
 
 html,
@@ -27,17 +51,40 @@ body {
   color: var(--color-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   overscroll-behavior: none;
 }
 
-/* Ollie's own voice is lowercase and unhurried; the interface should not shout over it. */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.028em;
+}
+
+/* Numbers that get compared column-to-column must not shift width as they change. The
+   context meter and the sixteen-type ranking both animate through digits. */
+.font-mono,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+}
+
 ::selection {
   background: var(--color-warm-dim);
   color: var(--color-text);
 }
 
+/* Visible on keyboard, absent for pointer users. Never removed, only styled. */
+:focus-visible {
+  outline: 2px solid var(--color-warm);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--color-line);
@@ -45,12 +92,19 @@ body {
   border: 3px solid transparent;
   background-clip: content-box;
 }
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-faint);
+  background-clip: content-box;
+}
 
+/* Reduced motion means gentler, not absent: opacity still carries the state change,
+   movement does not. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

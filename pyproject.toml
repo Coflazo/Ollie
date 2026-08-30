@@ -5,7 +5,7 @@ description = "A local-first dating simulator with a character that pushes back"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
-authors = [{ name = "Coflazo" }]
+authors = [{ name = "Coflazo" }, { name = "onysislabs" }]
 
 dependencies = [
     "fastapi>=0.115",

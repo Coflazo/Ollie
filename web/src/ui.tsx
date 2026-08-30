@@ -1,14 +1,23 @@
 import { motion } from 'motion/react'
 import type { ReactNode } from 'react'
 
-// Entrances ease out and are short. Anything longer than ~300ms in a chat reads as lag
-// rather than polish, and everything here animates transform/opacity only.
-export const rise = {
+/** Expo-out. The built-in `ease-out` keyword is too weak to read as intentional, and
+ *  `ease-in` is banned outright: it delays the first frame, which is exactly the moment
+ *  the user is watching. */
+export const ease = [0.16, 1, 0.3, 1] as const
+
+/** Entrances are short. Anything past ~250ms in a chat reads as lag, not polish, and
+ *  everything here moves transform and opacity only so it stays on the GPU. */
+export const riseIn = {
   initial: { opacity: 0, y: 8 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -4 },
-  transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] as const },
+  transition: { duration: 0.24, ease },
 }
+
+/** Exits are faster than entrances. Waiting for something to leave feels like lag;
+ *  waiting for something to arrive feels like anticipation. */
+export const exitFast = { duration: 0.16, ease }
 
 export function Chip({
   children,
@@ -31,9 +40,10 @@ export function Chip({
     <Tag
       onClick={onClick}
       title={title}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]
-        leading-none tracking-wide ${tones[tone]}
-        ${onClick ? 'cursor-pointer transition-colors hover:text-[var(--color-text)]' : ''}`}
+      // min-h-6 keeps interactive chips at the 24px desktop hit-target floor.
+      className={`inline-flex min-h-6 items-center gap-1.5 rounded-full border px-2.5 py-1
+        text-[11px] leading-none tracking-wide ${tones[tone]}
+        ${onClick ? 'cursor-pointer transition-colors duration-150 hover:text-[var(--color-text)]' : ''}`}
     >
       {children}
     </Tag>
@@ -41,26 +51,37 @@ export function Chip({
 }
 
 export function Meter({ fraction, stage }: { fraction: number; stage: string }) {
-  // Deliberately not a score the user is invited to maximise — it is a fuel gauge for
-  // the context window, and it only earns attention once it matters.
-  const colour =
-    stage === 'block' || stage === 'choose'
-      ? 'var(--color-warm)'
-      : stage === 'draft'
-        ? 'var(--color-warm-dim)'
-        : 'var(--color-line)'
+  // A fuel gauge for the context window, not a score to maximise. It stays grey until it
+  // matters, and the stage is spelled out in words so the colour is never load-bearing.
+  const urgent = stage === 'block' || stage === 'choose'
+  const colour = urgent
+    ? 'var(--color-warm)'
+    : stage === 'draft'
+      ? 'var(--color-warm-dim)'
+      : 'var(--color-line)'
+  const label =
+    stage === 'block'
+      ? 'full, carry it over'
+      : stage === 'choose'
+        ? 'nearly full'
+        : stage === 'draft'
+          ? 'filling up'
+          : 'plenty of room'
+
   return (
     <div className="space-y-1.5">
-      <div className="flex items-baseline justify-between text-[11px] text-[var(--color-faint)]">
-        <span>memory of this conversation</span>
-        <span className="font-mono">{Math.round(fraction * 100)}%</span>
+      <div className="flex items-baseline justify-between gap-2 text-[11px]">
+        <span className="text-[var(--color-faint)]">{label}</span>
+        <span data-numeric className="text-[var(--color-faint)]">
+          {Math.round(fraction * 100)}%
+        </span>
       </div>
       <div className="h-1 w-full overflow-hidden rounded-full bg-[var(--color-line)]/50">
         <motion.div
           className="h-full rounded-full"
           style={{ background: colour }}
           animate={{ width: `${Math.min(100, fraction * 100)}%` }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
+          transition={{ duration: 0.45, ease }}
         />
       </div>
     </div>
@@ -77,14 +98,12 @@ export function Panel({
   className?: string
 }) {
   return (
+    // Semi-transparent border reads cleaner against the surface than a solid line, and
+    // the radius stays at 12px so nested children can be concentric inside it.
     <section
-      className={`rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-4 ${className}`}
+      className={`rounded-xl border border-[var(--color-line)]/80 bg-[var(--color-surface)] p-4 ${className}`}
     >
-      {title && (
-        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--color-faint)]">
-          {title}
-        </h3>
-      )}
+      {title && <h3 className="mb-3 text-[12px] text-[var(--color-faint)]">{title}</h3>}
       {children}
     </section>
   )
@@ -96,43 +115,37 @@ export function Button({
   variant = 'primary',
   disabled,
   className = '',
+  type = 'button',
 }: {
   children: ReactNode
   onClick?: () => void
   variant?: 'primary' | 'ghost' | 'danger'
   disabled?: boolean
   className?: string
+  type?: 'button' | 'submit'
 }) {
+  // Every variant states its own text colour explicitly. Inheriting it is how buttons end
+  // up with invisible labels on a background that changed underneath them.
   const variants = {
     primary:
-      'bg-[var(--color-warm)] text-[var(--color-ink)] hover:bg-[var(--color-warm)]/90 font-medium',
+      'bg-[var(--color-warm)] text-[#1a0e08] font-medium hover:bg-[#f2916c] active:bg-[#d9744e]',
     ghost:
       'border border-[var(--color-line)] text-[var(--color-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-faint)]',
-    danger: 'border border-[var(--color-warm-dim)]/40 text-[var(--color-warm)] hover:bg-[var(--color-warm-dim)]/10',
+    danger:
+      'border border-[var(--color-warm-dim)]/50 text-[var(--color-warm)] hover:bg-[var(--color-warm-dim)]/12 hover:border-[var(--color-warm-dim)]',
   }
   return (
     <motion.button
+      type={type}
+      // Instant press feedback. The interface confirms it heard you before the model has.
       whileTap={disabled ? undefined : { scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+      transition={{ duration: 0.12, ease }}
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-lg px-4 py-2 text-sm transition-colors disabled:cursor-not-allowed
-        disabled:opacity-40 ${variants[variant]} ${className}`}
+      className={`min-h-9 rounded-lg px-4 py-2 text-sm transition-colors duration-150
+        disabled:cursor-not-allowed disabled:opacity-40 ${variants[variant]} ${className}`}
     >
       {children}
     </motion.button>
-  )
-}
-
-export function LocalBadge({ model, native }: { model: string | null; native?: boolean }) {
-  return (
-    <div className="flex items-center gap-3 text-[11px] text-[var(--color-faint)]">
-      <span className="flex items-center gap-1.5">
-        <span className="size-1.5 rounded-full bg-emerald-500" />
-        no cloud connection
-      </span>
-      {model && <span className="font-mono text-[var(--color-muted)]">{model}</span>}
-      {native && <span className="font-mono">native</span>}
-    </div>
   )
 }

@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# One command. Checks Ollama, builds the interface if needed, starts the server,
+# opens the browser. No flags to remember and no system prompt to paste anywhere.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+PY=".venv/bin/python"
+[ -x "$PY" ] || PY="python3"
+
+# Ollama has to be up before the model can be chosen. Start it ourselves rather than
+# telling the user to open another terminal, but never install it for them.
+if ! curl -sf --max-time 3 "${OLLAMA_HOST:-http://localhost:11434}/api/version" >/dev/null 2>&1; then
+  if command -v ollama >/dev/null 2>&1 && [ -z "${OLLAMA_HOST:-}" ]; then
+    echo "  starting ollama..."
+    nohup ollama serve >/dev/null 2>&1 &
+    for _ in $(seq 1 20); do
+      curl -sf --max-time 2 http://localhost:11434/api/version >/dev/null 2>&1 && break
+      sleep 0.5
+    done
+  else
+    echo "  Ollama is not reachable. Install it from https://ollama.com, then rerun." >&2
+    exit 1
+  fi
+fi
+
+# The native library is optional; Python fallbacks cover every function.
+if [ ! -f native/libollie_native.dylib ] && [ ! -f native/libollie_native.so ]; then
+  ./native/build.sh >/dev/null 2>&1 || echo "  native build skipped, using python fallbacks"
+fi
+
+if [ ! -d web/dist ]; then
+  echo "  building the interface (first run only)..."
+  (cd web && npm install --silent && npm run build --silent)
+fi
+
+exec "$PY" -m ollie serve "$@"

@@ -77,6 +77,7 @@ async def handle_turn(store: Store, client: Ollama, *, session: dict, profile: d
     passages = retrieve.search_corpus(store, user_text, mature=mature, limit=3)
     memories = retrieve.search_memories(store, profile["id"], user_text,
                                         mature=mature, limit=6)
+    memories = retrieve.expand_with_graph(store, profile["id"], memories, mature=mature)
     retrieve.mark_used(store, [m.id for m in memories])
 
     recent = store.messages(session["id"], limit=14)

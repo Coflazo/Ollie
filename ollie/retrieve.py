@@ -195,6 +195,47 @@ def search_memories(store: Store, profile_id: str, text: str, *, mature: bool,
     return scored[:limit]
 
 
+def expand_with_graph(store: Store, profile_id: str, hits: list[MemoryHit],
+                      *, mature: bool, extra: int = 2) -> list[MemoryHit]:
+    """Pull in memories that are connected to what we already found.
+
+    Lexical scoring can only find records that share words with the message. "How is her
+    sister" will not surface "her sister is a vet" if the stored predicate happens to be
+    phrased differently, but that record is one hop away in the graph. This adds a small
+    number of those, scored low so they never displace a direct hit.
+    """
+    from . import graph  # imported here so retrieval works with the graph module absent
+
+    if not hits or extra <= 0:
+        return hits
+
+    adjacency = graph.load()
+    if not adjacency:
+        return hits
+
+    found = {h.id for h in hits}
+    connected = [n for n in graph.neighbours(list(found), hops=1, limit=extra * 3)
+                 if n.startswith("mem_") and n not in found]
+    if not connected:
+        return hits
+
+    by_id = {m["id"]: m for m in store.memories(profile_id)}
+    added: list[MemoryHit] = []
+    for mem_id in connected:
+        m = by_id.get(mem_id)
+        if not m:
+            continue
+        if m["sensitivity"] == "special_category" and not mature:
+            continue
+        added.append(MemoryHit(m["id"], m["kind"], m["subject"], m["predicate"],
+                               m["value"], m["confidence"], m["importance"],
+                               m["sensitivity"], 0.19))
+        if len(added) >= extra:
+            break
+
+    return hits + added
+
+
 def mark_used(store: Store, memory_ids: list[str]) -> None:
     if not memory_ids:
         return
