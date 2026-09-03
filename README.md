@@ -4,25 +4,41 @@
 
 ### A local-first AI dating simulator with memory, boundaries, and a point of view
 
+Ollie works out who you would get along with, then builds that person and plays them. Entirely on your own machine.
+
 **Status: In development, testable locally.**
 
 [Watch the demo video](https://drive.google.com/file/d/1pdL71Q9w-dL1mPsI2Uc8jSNZsd8X2zWy/view?usp=sharing)
 
-[![Local first](https://img.shields.io/badge/LOCAL_FIRST-ON_DEVICE-e8825c?style=for-the-badge&labelColor=16120f)](#privacy-in-plain-language) [![Tests](https://img.shields.io/badge/TESTS-500_COLLECTED-e8825c?style=for-the-badge&labelColor=16120f)](#tests-and-measured-native-code) [![License](https://img.shields.io/badge/LICENSE-APACHE_2.0-e8825c?style=for-the-badge&labelColor=16120f)](LICENSE)
+[![Local first](https://img.shields.io/badge/LOCAL_FIRST-ON_DEVICE-e8825c?style=for-the-badge&labelColor=16120f)](#privacy-in-plain-language) [![Tests](https://img.shields.io/badge/TESTS-509_COLLECTED-e8825c?style=for-the-badge&labelColor=16120f)](#tests-and-measured-native-code) [![Platforms](https://img.shields.io/badge/RUNS_ON-MACOS_·_WINDOWS_·_LINUX-e8825c?style=for-the-badge&labelColor=16120f)](#run-locally) [![License](https://img.shields.io/badge/LICENSE-APACHE_2.0-e8825c?style=for-the-badge&labelColor=16120f)](LICENSE)
 
-Created by project co-authors [Coflazo](https://github.com/Coflazo) and [Onysis Labs](https://github.com/onysislabs).
-
-Built for [Personify by TAG, UvA, Anthropic, and Tulip](https://luma.com/gisgn0y1), Amsterdam, 30 August 2026.
+Free and open source under [Apache 2.0](LICENSE). Maintained by [Coflazo](https://github.com/Coflazo) and [Onysis Labs](https://github.com/onysislabs).
 
 </div>
 
-## Why Ollie exists
+## Mission
 
-Most conversational assistants are trained to be useful, agreeable, and easy to reset. A date is different. People remember awkward moments, have preferences, change their minds, and sometimes say no. Ollie is an experiment in making those qualities part of the product without sending the relationship history to a hosted model by default.
+Every AI companion on the market is the same character for everybody who uses it. Its personality was decided before you arrived, and the only thing that changes between users is the chat history.
 
-The broader problem is real: the [World Health Organization's Commission on Social Connection](https://www.who.int/groups/commission-on-social-connection) reported in 2025 that one in six people worldwide experience loneliness. Ollie does not claim to treat loneliness. It asks a narrower design question: can a private, persistent fictional character make an AI interaction feel more specific while still respecting clear safety limits?
+Ollie starts from a different question: who would *you* get along with?
 
-Ollie is not therapy, a medical product, a clinical intervention, or a substitute for human relationships. Its personality matching is not compatibility science.
+It asks ten Big Five-style questions, then runs a five-turn interview that keeps probing whichever relationship dimensions it has the least evidence about. From the answers it works out a character shape, ranks all sixteen against it with arithmetic you can read, and writes three different people who fit. You see the reasoning, you pick one, and you meet them.
+
+From there the goal is one thing: be the closest thing to a real companion that software can be for the specific person using it. Every other decision in this repository is downstream of that.
+
+A companion who forgets you is not close to anyone. So memory persists across sessions, records where each fact came from, and survives the end of a conversation through a continuity capsule you approve rather than a summary written behind your back.
+
+A companion who agrees with everything is not a person. So the character disagrees, declines topics, stays annoyed across turns, and holds interests you never gave it. That is harder to build than agreeableness and it is the entire point.
+
+A companion you tell secrets to has to be able to keep them. This is the reason Ollie runs a local model through Ollama instead of calling a hosted API, and it is a security decision before it is a philosophical one. Sending the conversation to someone else's model means trusting a policy: that it is not logged, not retained, not trained on, not exposed in a breach, not read by staff, and not produced on request. Policies change and servers get compromised. Running the model on your own machine removes the question, because the conversation never crosses the network in the first place. The model, the storage, and the safety guards are all local, there is no account and no telemetry, and after setup Ollie makes no network call at all. What never leaves the machine cannot leak from somewhere else.
+
+That is a claim about architecture, not about your whole computer, and [Privacy in plain language](#privacy-in-plain-language) is specific about what it does and does not cover.
+
+All of which is why this is open source rather than a product. A privacy promise you cannot inspect is a marketing claim. This one is 5,539 lines of Python, 375 lines of C++, and 2,527 lines of tests, all Apache 2.0, and you can read every line before you type anything personal into the box.
+
+Ollie is not therapy, a medical product, a clinical intervention, or a substitute for human relationships. The matching heuristic ranks a writing prompt, not a person's suitability, and it is not compatibility science. The [World Health Organization's Commission on Social Connection](https://www.who.int/groups/commission-on-social-connection) reported in 2025 that one in six people worldwide experience loneliness; Ollie does not claim to treat that.
+
+The unfinished parts are written down too. The searchable memory projection is still partly plaintext. The crisis resources are Netherlands-oriented. The marketplace is a simulation with no buyer behind it. A project asking to be trusted with this kind of conversation does not get to be vague about what it has not solved.
 
 ## What works today
 
@@ -39,7 +55,7 @@ The current local application includes:
 - a local research-contribution marketplace simulation that does not upload data or process payment;
 - 509 collected model-free tests, with 508 passing and one skipped, verified on macOS, Windows and Linux.
 
-The tested hackathon path used `qwen3:14b` through Ollama. Smaller and larger model recommendations are selected from the machine's RAM tier. They have not all been validated to the same depth.
+The most heavily tested path uses `qwen3:14b` through Ollama. Smaller and larger model recommendations are selected from the machine's RAM tier. They have not all been validated to the same depth.
 
 ## How the experience works
 
@@ -159,7 +175,7 @@ SQLite is the source of truth. Message bodies and memory values are encrypted wi
 
 There is an important limit to that statement: the searchable memory projection stores the subject, predicate, and ordinary value in plaintext so FTS5 can search it. Values classified as special-category data are left out of that projection. Anyone with access to the database may still learn information from plaintext search fields, metadata, and access patterns. Ollie does not claim full-database encryption.
 
-Users may index PDF and EPUB files they lawfully own. The repository includes only small cover-identification thumbnails, never the books or extracted passages. Runtime indexes and local corpora are gitignored. A repository guard checks both tracked files and reachable Git history, so deleting a private file in a later commit is not treated as sufficient protection. Retrieval uses SQLite FTS5 and a native or Python ranking path. The hackathon machine had a private, locally supplied shelf of 57 books indexed into 10,311 passages; those files and derived indexes are not distributed.
+Users may index PDF and EPUB files they lawfully own. The repository includes only small cover-identification thumbnails, never the books or extracted passages. Runtime indexes and local corpora are gitignored. A repository guard checks both tracked files and reachable Git history, so deleting a private file in a later commit is not treated as sufficient protection. Retrieval uses SQLite FTS5 and a native or Python ranking path. One development machine held a private, locally supplied shelf of 57 books indexed into 10,311 passages; those files and derived indexes are not distributed.
 
 Generated replies are rejected if they reproduce 12 or more consecutive words from an imported source. That is a practical output guard, not a legal opinion or a substitute for using lawfully obtained material.
 
@@ -184,7 +200,7 @@ The comparison below describes architectural defaults, not every product in eith
 
 ## Safety and scope
 
-Ollie creates adult fictional characters. Mature mode requires an explicit 18+ choice. The guards block content involving minors, coercion, exploitative dynamics, and several anti-dependency patterns. A crisis pattern takes a fixed route before model generation rather than asking the model to improvise. The bundled crisis information is Netherlands-oriented, so a user elsewhere should contact the appropriate local emergency or crisis service.
+Ollie creates adult fictional characters. Mature mode requires an explicit 18+ choice. The guards block content involving minors, coercion, exploitative dynamics, and several anti-dependency patterns. A crisis pattern takes a fixed route before model generation rather than asking the model to improvise. The bundled crisis information is Netherlands-oriented, so a user elsewhere should contact the appropriate local emergency or crisis service. Widening that coverage is open work and a good first contribution.
 
 The product is not clinical, not therapy, and not a safety-critical service. Automated guard tests cover known patterns but cannot guarantee the behavior of every local model.
 
@@ -225,12 +241,13 @@ The interface palette comes directly from `web/src/index.css`: ink `#0c0a09`, su
 
 ## Tests and measured native code
 
-The test suite is model-free so it can run without Ollama. The latest local Windows run collected 509 tests, with 508 passing and one skipped. CI runs the full suite on Ubuntu, macOS and Windows, builds the C++20 library on each, asserts that the native path actually loaded rather than falling back to Python, builds the web interface, and rejects private-corpus artifacts in both the current tree and reachable history.
+The test suite is model-free so it can run without Ollama. It collects 509 tests, with 508 passing and one skipped. CI runs the full suite on Ubuntu, macOS and Windows, builds the C++20 library on each, asserts that the native path actually loaded rather than falling back to Python, builds the web interface, and rejects private-corpus artifacts in both the current tree and reachable history.
 
-Running on all three matters more than it sounds. Most of what breaks in this project breaks on exactly one platform and is invisible from the other two: a shared library named `.so` on a machine that only loads `.dll`, a temporary directory that cannot be deleted because a SQLite handle is still open, a shell script whose shebang picked up a carriage return.
+Running on all three catches a specific class of bug. Most of what breaks in this project breaks on exactly one platform and is invisible from the other two: a shared library named `.so` on a machine that only loads `.dll`, a temporary directory that cannot be deleted because a SQLite handle is still open, a shell script whose shebang picked up a carriage return.
 
-`scripts/benchmark.py` measures each native function against its Python twin. These are
-the numbers from a Windows machine, an 8-core Ryzen 7 7735HS:
+Every native function has a Python twin, and `tests/test_native_parity.py` runs both over randomised input and compares them. That test only means something when the compiled library actually loaded, which is why CI asserts it rather than assuming it.
+
+`scripts/benchmark.py` measures each native function against its Python twin. These are the numbers from a Windows machine, an 8-core Ryzen 7 7735HS:
 
 | Operation | Python | Native | Relative result |
 |---|---:|---:|---:|
@@ -241,25 +258,13 @@ the numbers from a Windows machine, an 8-core Ryzen 7 7735HS:
 | fuse a pool of 400 | 0.164 ms | 0.174 ms | 0.9x, slower |
 | fuse a pool of 4000 | 3.65 ms | 1.01 ms | 3.6x faster |
 
-The slower fusion row is kept because it shows where the native boundary does not help: at
-a small pool size, marshalling the arrays through ctypes costs more than the arithmetic it
-saves. The overlap guard is the one that earns its place, because it runs on every reply
-against every retrieved passage.
-
-Until this release those numbers were unobtainable on Windows. The loader only ever looked
-for a `.dylib` or a `.so`, so `available()` was False on every Windows machine and all three
-hot paths silently ran as Python. The library now builds with MSVC, Clang or GCC, and the
-`test_native_parity.py` suite runs against the real compiled library on all three platforms
-rather than comparing Python against itself.
+The slower fusion row is kept because it shows where the native boundary does not help: at a small pool size, marshalling the arrays through ctypes costs more than the arithmetic it saves. The overlap guard is the one that earns its place, because it runs on every reply against every retrieved passage.
 
 ## Run locally
 
 Ollie runs the same way on macOS, Windows and Linux.
 
-Requirements: Python 3.12 or later, Node 20 or later, Git, and [Ollama](https://ollama.com)
-for real local generation. A C++20 compiler is optional because every native function has a
-Python fallback, but it is worth having: the copyright guard runs on every reply and is up
-to 58x faster in C++.
+Requirements: Python 3.12 or later, Node 20 or later, Git, and [Ollama](https://ollama.com) for real local generation. A C++20 compiler is optional because every native function has a Python fallback, but it is worth having: the copyright guard runs on every reply and is up to 58x faster in C++.
 
 | | macOS and Linux | Windows |
 |---|---|---|
@@ -270,15 +275,9 @@ to 58x faster in C++.
 
 ### Quick start
 
-Double-click the launcher for your platform. Both run the same script,
-`scripts/launch.py`: it pulls the latest main, creates the virtual environment and installs
-dependencies, builds the native library and the interface, runs the test suite, starts a
-locally installed Ollama, and opens Ollie. If Ollama is unavailable it falls back to
-scripted demo mode rather than refusing to start.
+Double-click the launcher for your platform. Both run the same script, `scripts/launch.py`: it pulls the latest main, creates the virtual environment and installs dependencies, builds the native library and the interface, runs the test suite, starts a locally installed Ollama, and opens Ollie. If Ollama is unavailable it falls back to scripted demo mode rather than refusing to start.
 
-Running it twice is the normal way to use it. The second run replaces the copy already
-holding the port. Anything on that port that is not Ollie is left alone and the launcher
-moves to the next free port instead.
+Running it twice is the normal way to use it. The second run replaces the copy already holding the port. Anything on that port that is not Ollie is left alone and the launcher moves to the next free port instead.
 
 ### Manual setup
 
@@ -305,8 +304,7 @@ cd web; npm ci; npm run build; cd ..
 .venv\Scripts\python -m ollie serve
 ```
 
-Every command below is written for macOS and Linux. On Windows, replace
-`./.venv/bin/python` with `.venv\Scripts\python`; nothing else changes.
+Every command below is written for macOS and Linux. On Windows, replace `./.venv/bin/python` with `.venv\Scripts\python`; nothing else changes.
 
 The server explains whether Ollama must be started and prints the exact `ollama pull` command when the recommended model is missing. To inspect the product without model inference:
 
@@ -338,6 +336,30 @@ To opt into an Ollama host on a trusted network:
 ```bash
 OLLAMA_HOST=http://other-machine.local:11434 ./scripts/ollie
 ```
+
+## Contributing
+
+Issues and pull requests are welcome. The project has no CLA and no contributor agreement; contributions are accepted under the same [Apache 2.0](LICENSE) terms as the rest of the code.
+
+Everything needed to check a change runs from a clone, with no model and no network:
+
+```bash
+./.venv/bin/python -m pytest -q          # 509 tests, none of which need Ollama
+python native/build.py                    # optional C++ library, any of MSVC, Clang, GCC
+python scripts/check_private_corpus.py    # refuses books, databases and weights in Git
+```
+
+Four house rules, each of which exists because breaking it caused a real problem:
+
+Never commit books, databases, model weights, or conversation data. `check_private_corpus.py` runs in CI and checks reachable Git history as well as the current tree, because deleting a private file in a later commit does not remove it from the repository.
+
+Anything added to the C++ needs a Python twin and a case in `tests/test_native_parity.py`. The native path is an optimisation, never a requirement, and the parity test is what keeps the two implementations honest with each other.
+
+Test on the platform you changed, or let CI do it. Windows, macOS and Linux each hide a category of bug from the other two.
+
+The prose in this repository, including commit messages, does not use em dashes.
+
+Some open work, if you are looking for a place to start: crisis-resource coverage outside the Netherlands, validating more models across the RAM tiers, and making the searchable memory projection private without losing local retrieval.
 
 ## Repository map
 
@@ -371,9 +393,9 @@ START.bat         double-click launcher for Windows
 .gitattributes    pins LF on shell scripts so a Windows clone cannot break them
 ```
 
-[`docs/PRODUCT.md`](docs/PRODUCT.md) explains the domain model and tradeoffs. [`docs/HANDOFF.md`](docs/HANDOFF.md) covers fresh-machine setup and rehearsal. [`NOTICE`](NOTICE) records third-party references and licensing boundaries.
+[`docs/PRODUCT.md`](docs/PRODUCT.md) explains the domain model and tradeoffs. [`docs/HANDOFF.md`](docs/HANDOFF.md) covers fresh-machine setup. [`NOTICE`](NOTICE) records third-party references and licensing boundaries.
 
-## Future direction
+## Roadmap
 
 The next useful work is not to make the character more agreeable. It is to improve model validation across hardware tiers, make searchable storage private without losing local retrieval, test safety behavior across more local models, widen crisis-resource localization, and define a real governance process before any research-data contribution leaves the device.
 
@@ -382,7 +404,3 @@ The marketplace remains a proposal until there is a real lawful workflow, recipi
 ## License and third-party work
 
 Ollie's original code is licensed under [Apache License 2.0](LICENSE). Dependencies, local models, fonts, optional tools, and referenced personality materials remain under their own terms. The repository does not bundle Ollama models or private book text. See [NOTICE](NOTICE) for the precise boundary.
-
-## Acknowledgements
-
-Thank you to [Anthropic](https://www.anthropic.com/), [ElevenLabs](https://elevenlabs.io/), [TAG](https://www.tag.space/), and [Tulip Ventures](https://www.tulip.ventures/) for supporting Personify and its builders. We also thank the [University of Amsterdam](https://www.uva.nl/en) for its role in the event.

@@ -1,14 +1,14 @@
 # Ollie: what we built and where it goes
 
-Coflazo and onysislabs. Written 30 August 2026, the day of the build.
+Coflazo and Onysis Labs. First written 30 August 2026.
 
 ---
 
 ## 1. The problem we picked
 
-Personify's brief said every AI ships with the same personality: helpful, agreeable, bland,
-trained to find the most logical answer rather than to feel like anyone. Among the angles it
-listed was *"knowing when to push back instead of agree."*
+Nearly every AI ships with the same personality: helpful, agreeable, bland, trained to
+find the most logical answer rather than to feel like anyone. The question we wanted to
+answer was what changes when a character knows *when to push back instead of agree*.
 
 Almost every companion product in the market treats that line as a defect to engineer away.
 The whole category optimises for pleasantness. The result is a class of software that is
@@ -348,7 +348,7 @@ enforces it.
 
 ## 5. Where this goes
 
-### Near term, the week after the hackathon
+### Near term
 
 Finish the marketplace screen the backend is already waiting for. Surface interaction state
 in the interface so emotional calibration is legible without opening a drawer. Add the
@@ -396,7 +396,7 @@ of that is specific to dating. It applies to a tutor who should not fold when a 
 pushes back, an intake system that should not perform empathy it cannot back, a support
 agent that should be allowed to say no.
 
-If any part of this outlives the hackathon, we think it is that: an argument, with a working
+If any part of this project lasts, we think it is that: an argument, with a working
 implementation attached, that character in software is an engineering problem with tests,
 not a prompt you write once and hope about.
 
@@ -437,8 +437,8 @@ ollie/
 prompts/        the immutable contract, the character, the runtime templates
 native/         the C++ hot paths and their Python twins
 web/            the five screens
-tests/          498 tests, none of which need a model
+tests/          509 tests, none of which need a model
 docs/           this document and the handoff
 ```
 
-Apache-2.0. Built by Coflazo and onysislabs, Amsterdam, 30 August 2026.
+Apache-2.0. Built by Coflazo and Onysis Labs.

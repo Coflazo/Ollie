@@ -1,4 +1,4 @@
-"""Memory rules, and the episode-to-episode continuity the hackathon actually scores.
+"""Memory rules, and the episode-to-episode continuity the product depends on.
 
 `test_fact_survives_rollover_into_next_episode` is the important one: it establishes a
 detail in episode one, rolls the context, and asserts the detail is still retrievable and
