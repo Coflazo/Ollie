@@ -1,43 +1,18 @@
-#!/usr/bin/env bash
-# One command. Checks Ollama, builds the interface if needed, starts the server,
-# opens the browser. No flags to remember and no system prompt to paste anywhere.
-set -euo pipefail
+#!/usr/bin/env sh
+# One command, for a working tree you are already in the middle of: no git pull, no test
+# run, just build what changed and start. `START.command` is the same thing with those two
+# steps included, and `scripts\ollie.cmd` is this file for Windows.
+#
+# `sh` rather than `bash`: nothing here needs bash, and the smaller container images do not
+# ship it.
+set -eu
 cd "$(dirname "$0")/.."
 
-PY=".venv/bin/python"
-[ -x "$PY" ] || PY="python3"
-
-# Ollama has to be up before the model can be chosen. Start it ourselves rather than
-# telling the user to open another terminal, but never install it for them.
-if ! curl -sf --max-time 3 "${OLLAMA_HOST:-http://localhost:11434}/api/version" >/dev/null 2>&1; then
-  if command -v ollama >/dev/null 2>&1 && [ -z "${OLLAMA_HOST:-}" ]; then
-    echo "  starting ollama..."
-    nohup ollama serve >/dev/null 2>&1 &
-    for _ in $(seq 1 20); do
-      curl -sf --max-time 2 http://localhost:11434/api/version >/dev/null 2>&1 && break
-      sleep 0.5
-    done
-  else
-    echo "  Ollama is not reachable. Install it from https://ollama.com, then rerun." >&2
-    exit 1
+for candidate in ./.venv/bin/python python3.13 python3.12 python3 python; do
+  if command -v "$candidate" >/dev/null 2>&1 || [ -x "$candidate" ]; then
+    exec "$candidate" scripts/launch.py --quick "$@"
   fi
-fi
+done
 
-# The native library is optional; Python fallbacks cover every function. Rebuild when the
-# source is newer than the binary as well as when it is missing: a pull that adds a native
-# function otherwise leaves a library that loads but lacks the new symbol, and the loader
-# then correctly but silently drops to Python for the rest of the demo.
-case "$(uname -s)" in
-  Darwin) LIB=native/libollie_native.dylib ;;
-  *)      LIB=native/libollie_native.so ;;
-esac
-if [ ! -f "$LIB" ] || [ native/ollie_native.cpp -nt "$LIB" ]; then
-  ./native/build.sh >/dev/null 2>&1 || echo "  native build skipped, using python fallbacks"
-fi
-
-if [ ! -d web/dist ]; then
-  echo "  building the interface (first run only)..."
-  (cd web && npm install --silent && npm run build --silent)
-fi
-
-exec "$PY" -m ollie serve "$@"
+echo "no Python found; install Python 3.12 or later" >&2
+exit 1

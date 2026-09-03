@@ -43,7 +43,7 @@ rather than resetting to friendly.
 
 No account, no telemetry, no network call after setup. The model runs through Ollama on your
 hardware; the memory is a SQLite file in a directory you own, with message bodies and memory
-values encrypted at rest against a key in the system keychain.
+values encrypted at rest against a key held by the operating system: Keychain on macOS, DPAPI on Windows, the freedesktop secret service on Linux.
 
 ---
 
@@ -424,7 +424,7 @@ ollie/
   persona.py    questionnaire scoring, adaptive interview, trait extraction, prompt compiler
   types16.py    the sixteen types and the Gifts Differing weighting
   memory.py     structured extraction, clamped state, continuity capsule
-  store.py      SQLite schema, FTS5, keychain-backed AES-GCM at rest
+  store.py      SQLite schema, FTS5, OS-keystore-backed AES-GCM at rest
   retrieve.py   hybrid corpus and memory ranking, graph expansion
   chat.py       the turn pipeline and its guard ordering
   safety.py     adult validation, hard blocks, crisis, anti-dependency

@@ -68,8 +68,10 @@ def test_every_indexed_book_is_named_in_the_prompt() -> None:
     """The prompt claims to describe the whole shelf. If a book is indexed and retrievable
     but never named here, the claim is false and the model has no idea what it is reading.
     """
-    store = Store()
-    titles = [r[0] for r in store.db.execute("SELECT title FROM sources")]
+    # This one opens the real local database rather than a temporary copy, so leaving the
+    # connection open would hold a lock on the user's own ollie.db for the rest of the run.
+    with Store() as store:
+        titles = [r[0] for r in store.db.execute("SELECT title FROM sources")]
     if not titles:
         pytest.skip("no corpus indexed on this machine")
 

@@ -6,13 +6,22 @@ graphify-out/
 exports/
 *.epub
 *.pdf
+*.mobi
+*.azw
+*.azw3
+*.djvu
 *.gguf
 *.bin
+*.safetensors
+*.jsonl
+*.parquet
 
 # Local state
 *.db
 *.db-wal
 *.db-shm
+*.sqlite
+*.sqlite3
 .ollie/
 data/
 
@@ -22,14 +31,28 @@ __pycache__/
 *.pyc
 *.egg-info/
 .pytest_cache/
+.test-tmp/
 native/*.dylib
 native/*.so
+native/*.dll
+# MSVC leaves these beside the DLL; build.py removes them, but a failed build cannot.
+native/*.obj
+native/*.lib
+native/*.exp
+native/*.pdb
+# Renamed aside when a rebuild could not delete a DLL that was still mapped.
+native/*.old-*
 web/node_modules/
 web/dist/
 node_modules/
 
 # OS
 .DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
 
 # Scratch
 pytest.ini
+.ollie-tests.log

@@ -187,18 +187,21 @@ def test_who_you_want_to_meet_is_never_written_to_disk(tmp_path) -> None:
     """
     from ollie.store import Store
 
-    store = Store(tmp_path / "p.db", key=b"0" * 32)
+    # `with`, so the connection is closed even when an assertion fails. Windows will not
+    # delete a database file that is still open, and pytest deletes tmp_path trees.
+    with Store(tmp_path / "p.db", key=b"0" * 32) as store:
+        preferences = {"content_mode": "general", "pronouns": "she/her",
+                       "seeking": "women"}
+        seeking = preferences.pop("seeking")  # what submit_questionnaire does
 
-    preferences = {"content_mode": "general", "pronouns": "she/her", "seeking": "women"}
-    seeking = preferences.pop("seeking")  # what submit_questionnaire does
+        pid = store.create_profile({**preferences, "preferences": preferences},
+                                   {"big_five": {}}, "Rose")
 
-    pid = store.create_profile({**preferences, "preferences": preferences},
-                               {"big_five": {}}, "Rose")
+        raw = store.db.execute(
+            "SELECT settings_json FROM profiles WHERE id=?", (pid,)).fetchone()[0]
+        assert seeking not in raw, "orientation reached the profile row"
+        assert "seeking" not in raw, "the orientation key reached the profile row"
 
-    raw = store.db.execute(
-        "SELECT settings_json FROM profiles WHERE id=?", (pid,)).fetchone()[0]
-    assert seeking not in raw, "orientation reached the profile row"
-    assert "seeking" not in raw, "the orientation key reached the profile row"
-
-    # The answers that are not special category are still kept, or the split is pointless.
-    assert "she/her" in raw
+        # The answers that are not special category are still kept, or the split is
+        # pointless.
+        assert "she/her" in raw

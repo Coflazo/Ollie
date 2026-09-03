@@ -45,6 +45,12 @@ section, and everything else behaves identically. Do not block on this.
 
 ## 1. Clone and install
 
+Every command in this document is written for macOS and Linux. On Windows the only thing
+that changes is the path to the interpreter: replace `./.venv/bin/python` with
+`.venv\Scripts\python`, `./scripts/ollie` with `scripts\ollie.cmd`, and `./native/build.sh`
+with `native\build.cmd`. Or skip all of it and double-click `START.bat`, which is the same
+procedure as `START.command`.
+
 ```bash
 git clone https://github.com/Coflazo/Ollie.git
 cd Ollie
@@ -69,10 +75,11 @@ Python version without a matching wheel; check `python3 --version` again.
 ## 2. Build the native library
 
 ```bash
-./native/build.sh
+./native/build.sh          # native\build.cmd on Windows
 ```
 
-Expect: `built native/libollie_native.dylib`
+Expect `built native/libollie_native.dylib` on macOS, `.so` on Linux, `.dll` on Windows.
+The script finds MSVC, Clang or GCC by itself and says so.
 
 Then confirm the C++ path is actually live rather than silently falling back:
 
@@ -163,9 +170,10 @@ cd web && npm install && npm run build && cd ..
 ./scripts/ollie
 ```
 
-`scripts/ollie` starts Ollama if it is not already up, builds the native library if it is
-missing, builds the web bundle if `web/dist` does not exist, then starts the server and
-opens a browser at `http://127.0.0.1:8765`.
+`scripts/ollie`, and `scripts\ollie.cmd` on Windows, both run `scripts/launch.py --quick`.
+It starts Ollama if it is not already up, rebuilds the native library, builds the web
+bundle if `web/dist` is missing or stale, then starts the server and opens a browser at
+`http://127.0.0.1:8765`.
 
 Expected console output:
 

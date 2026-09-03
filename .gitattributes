@@ -1,0 +1,38 @@
+# Line endings are a cross-platform correctness problem, not a style preference.
+#
+# With core.autocrlf=true (the Git for Windows default) a clone on Windows rewrites every
+# text file to CRLF in the working tree. That is harmless for Python, and fatal for a shell
+# script: `#!/usr/bin/env bash\r` makes the kernel look for an interpreter literally named
+# "bash\r", and the script dies with "bad interpreter" the moment the tree reaches macOS or
+# Linux. Pinning eol=lf on the executable text files removes the whole class of failure.
+
+* text=auto eol=lf
+
+# Anything with a shebang, plus the formats where a stray CR changes meaning.
+*.sh        text eol=lf
+*.command   text eol=lf
+*.py        text eol=lf
+scripts/ollie text eol=lf
+
+# Windows shells are the mirror image: cmd.exe reads a .bat line at a time and a lone LF
+# can split a command in the wrong place, so these keep CRLF everywhere.
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+
+# Never touched. `text=auto` would otherwise corrupt anything it misdetects as text.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.woff      binary
+*.woff2     binary
+*.pdf       binary
+*.epub      binary
+*.gguf      binary
+*.safetensors binary
+*.db        binary
+*.dll       binary
+*.dylib     binary
+*.so        binary

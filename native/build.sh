@@ -1,22 +1,19 @@
-#!/usr/bin/env bash
-# One compiler invocation. No CMake, no build system, no generated files to check in.
+#!/usr/bin/env sh
+# Shim. The build itself lives in build.py, which is the one that knows about MSVC, MinGW,
+# Clang, GCC and the three different shared-library extensions. Keeping this file means the
+# POSIX habit and every existing instruction still work; keeping it this short means there
+# is only ever one implementation to fix.
 #
-# CMake is a reasonable choice for a project with many targets. This has one translation
-# unit and one output, so a build system here would be pure ceremony.
-set -euo pipefail
-
+# `sh` rather than `bash` on purpose: Alpine and the smaller container images ship without
+# bash, and there is nothing here that needs it.
+set -eu
 cd "$(dirname "$0")"
 
-case "$(uname -s)" in
-  Darwin) EXT=dylib ;;
-  *)      EXT=so ;;
-esac
+for py in python3 python py; do
+  if command -v "$py" >/dev/null 2>&1; then
+    exec "$py" build.py "$@"
+  fi
+done
 
-# -march=native is skipped deliberately: the build machine and the demo machine are
-# different architectures, and a library that segfaults on someone else's CPU is worse
-# than one that is marginally slower.
-clang++ -std=c++20 -O3 -fPIC -shared \
-        -Wall -Wextra -Wno-unused-parameter \
-        -o "libollie_native.${EXT}" ollie_native.cpp
-
-echo "built native/libollie_native.${EXT}"
+echo "no python found; install Python 3.12 or later" >&2
+exit 1

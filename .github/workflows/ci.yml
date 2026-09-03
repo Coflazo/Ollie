@@ -1,13 +1,18 @@
 # Three things, and only things that can be checked without a model.
 #
-# The suite is deliberately model-free, so CI runs it in full rather than a subset. The
-# C++ is built on both platforms because `tests/test_native_parity.py` is only meaningful
-# when the library actually loaded — a green suite with the Python fallback silently in
-# place is exactly the false confidence the parity test exists to prevent.
+# The suite is deliberately model-free, so CI runs it in full rather than a subset. It runs
+# on all three operating systems because most of what breaks in this project breaks on
+# exactly one of them: a shared library named .so on a machine that only loads .dll, a temp
+# directory that cannot be deleted because a SQLite handle is still open, a shell script
+# whose shebang picked up a carriage return. None of those are visible from the other two.
+#
+# The C++ is built everywhere because `tests/test_native_parity.py` is only meaningful when
+# the library actually loaded. A green suite with the Python fallback silently in place is
+# exactly the false confidence the parity test exists to prevent.
 #
 # The guard is the one that matters legally. The books are in-copyright commercial titles
-# and nothing derived from them is redistributed; the repository has to enforce that
-# rather than rely on everyone remembering.
+# and nothing derived from them is redistributed; the repository has to enforce that rather
+# than rely on everyone remembering.
 
 name: ci
 
@@ -31,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -46,23 +51,29 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      # build.py finds MSVC, Clang or GCC by itself, so this is the same command on all
+      # three runners. The shell is pinned to bash so the two steps below can be written
+      # once rather than once per platform.
       - name: build the native library
-        run: ./native/build.sh
+        shell: bash
+        run: python native/build.py
 
-      # Building it is not the same as loading it. ctypes will fall back to Python on an
-      # architecture mismatch without raising, so assert the native path is actually live
-      # before trusting the parity run that follows.
+      # Building it is not the same as loading it. ctypes falls back to Python on an
+      # architecture mismatch or a missing dependency without raising, so assert the native
+      # path is actually live before trusting the parity run that follows.
       - name: assert the native path loaded
+        shell: bash
         run: |
-          native_status=$(python -c "import sys; sys.path.insert(0, 'native'); import loader; print(loader.status())")
-          echo "native status: $native_status"
-          if [ "$native_status" != "native" ]; then
-            echo "::error::built the library but loaded the Python fallback ($native_status);"
+          status=$(python -c "import sys; sys.path.insert(0, 'native'); import loader; print(loader.status())")
+          echo "native status: $status"
+          if [ "$status" != "native" ]; then
+            echo "::error::built the library but loaded the Python fallback ($status);"
             echo "::error::the parity test would have compared Python against itself"
             exit 1
           fi
 
       - name: pytest
+        shell: bash
         run: python -m pytest -q
 
   guard:
@@ -71,29 +82,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Extension and path matching catches the honest mistake. The size cap catches the
-      # renamed one: every legitimate file in this repository is under 100 KB, so anything
-      # past a few megabytes is a book, a database or a set of weights wearing a new name.
-      - name: check tracked files
-        run: |
-          forbidden=$(git ls-files \
-            | grep -E '(^|/)(Books|corpus|data|exports|graphify_ws)/|\.(db|db-wal|db-shm|gguf|bin|safetensors|epub|pdf|mobi|azw3)$' \
-            || true)
-          if [ -n "$forbidden" ]; then
-            echo "::error::books, databases, weights and conversation data are never committed"
-            echo "$forbidden" | while read -r f; do echo "::error file=$f::$f must not be tracked"; done
-            exit 1
-          fi
-
-          oversized=$(git ls-files -z | xargs -0 -r ls -l 2>/dev/null \
-            | awk '$5 > 5242880 {print $5, $9}' || true)
-          if [ -n "$oversized" ]; then
-            echo "::error::a tracked file is over 5 MB, which no source file in this repo is"
-            echo "$oversized"
-            exit 1
-          fi
-
-          echo "clean: no books, databases or weights tracked"
+      # Check both the current index and all objects reachable through Git history.
+      - name: check tracked files and reachable history
+        run: python scripts/check_private_corpus.py
 
   web:
     name: interface

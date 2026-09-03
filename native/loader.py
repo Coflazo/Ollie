@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import ctypes
 import math
+import os
 import platform
 import re
+import sys
 from pathlib import Path
 
 _NATIVE_DIR = Path(__file__).resolve().parent
@@ -20,9 +22,19 @@ _load_error: str = "not attempted"
 _WORD = re.compile(r"[a-z0-9]+")
 
 
+# What the platform calls a shared library. Getting this wrong is silent: the file is
+# simply never found, `available()` returns False for the life of the process, and Ollie
+# runs the Python twins without anyone noticing the C++ was built at all.
+_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib"}.get(platform.system(), ".so")
+
+# How to rebuild, in the words of the shell the reader is most likely standing in. Raw,
+# because "native\build.py" in an ordinary string is "native", a backspace, and "uild.py".
+_BUILD_HINT = (r"python native\build.py" if platform.system() == "Windows"
+               else "./native/build.sh")
+
+
 def _library_path() -> Path:
-    ext = "dylib" if platform.system() == "Darwin" else "so"
-    return _NATIVE_DIR / f"libollie_native.{ext}"
+    return _NATIVE_DIR / f"libollie_native{_SUFFIX}"
 
 
 def _load() -> ctypes.CDLL | None:
@@ -31,7 +43,7 @@ def _load() -> ctypes.CDLL | None:
         return _lib
     path = _library_path()
     if not path.exists():
-        _load_error = f"not built: {path.name} missing (run native/build.sh)"
+        _load_error = f"not built: {path.name} missing (run {_BUILD_HINT})"
         return None
     try:
         lib = ctypes.CDLL(str(path))
@@ -43,13 +55,13 @@ def _load() -> ctypes.CDLL | None:
     # detectable. A .dylib built before a function was added loads perfectly well and then
     # raises AttributeError on the first call to the symbol it is missing, which is worse
     # than having no library at all, because the Python fallbacks exist precisely so that a
-    # missing native path costs nothing but speed. `scripts/ollie` only builds when the
-    # file is absent, so this is the ordinary state of a working tree after a pull that
-    # touched the C++. Treat incomplete as absent and carry on in Python.
+    # missing native path costs nothing but speed. The launcher only builds when the file
+    # is absent, so this is the ordinary state of a working tree after a pull that touched
+    # the C++. Treat incomplete as absent and carry on in Python.
     try:
         _bind(lib)
     except AttributeError as exc:
-        _load_error = f"stale library, rebuild with native/build.sh ({exc})"
+        _load_error = f"stale library, rebuild with {_BUILD_HINT} ({exc})"
         return None
 
     _lib = lib
@@ -158,7 +170,53 @@ def py_score_memories(terms: list[str], texts: list[str], ints: list[int],
     return out
 
 
+def _windows_physical_ram() -> int:
+    class MemoryStatusEx(ctypes.Structure):
+        _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+
+    status = MemoryStatusEx()
+    status.dwLength = ctypes.sizeof(status)
+    try:
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+            return int(status.ullTotalPhys)
+    except (AttributeError, OSError):
+        pass
+    return 0
+
+
 def py_physical_ram() -> int:
+    """Physical RAM in bytes, 0 if it genuinely cannot be determined.
+
+    This one deliberately answers on more platforms than its C++ twin does. The twin only
+    runs when the library built, and the library only builds on a machine with a compiler;
+    this runs when there is nothing else, so a real number on a BSD is worth more than
+    symmetry with a branch of the C++ that returns 0 there. `test_physical_ram_is_plausible`
+    accepts either, which is what makes the asymmetry safe.
+    """
+    if sys.platform == "win32":
+        return _windows_physical_ram()
+
+    # SC_PHYS_PAGES and SC_PAGE_SIZE are POSIX, so one call covers macOS, Linux, the BSDs
+    # and Solaris without spawning anything.
+    try:
+        return int(os.sysconf("SC_PAGE_SIZE")) * int(os.sysconf("SC_PHYS_PAGES"))
+    except (AttributeError, ValueError, OSError):
+        pass
+
+    try:
+        with open("/proc/meminfo", encoding="utf-8") as handle:
+            if m := re.search(r"^MemTotal:\s+(\d+) kB", handle.read(), re.M):
+                return int(m.group(1)) * 1024
+    except OSError:
+        pass
+
     import subprocess
     try:
         out = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True,

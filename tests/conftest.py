@@ -9,12 +9,60 @@ inference.
 
 from __future__ import annotations
 
+import getpass
 import json
+import tempfile
 from pathlib import Path
+from typing import Iterator
 
 import pytest
 
 from ollie.store import Store
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Use a project-local temp root when the system one has become unusable.
+
+    pytest keeps its scratch directories under `<system temp>/pytest-of-<user>`. If that
+    directory ends up with permissions that deny its own owner, which happens on Windows
+    when repeated cleanups are interrupted, every test in the run fails during fixture
+    setup with `PermissionError` and a path that has nothing to do with the code under
+    test. It is a genuinely confusing hour for anyone who meets it for the first time.
+
+    So probe it, and fall back to a directory inside the checkout. This says loudly what it
+    did rather than hiding it: the machine still has a broken temp directory, and the
+    warning carries the command that repairs it.
+    """
+    if config.option.basetemp:
+        return  # someone chose one explicitly; do not second-guess them
+
+    try:
+        user = getpass.getuser()
+    except Exception:  # noqa: BLE001 - getuser consults several backends, any can fail
+        user = "unknown"
+    root = Path(tempfile.gettempdir()) / f"pytest-of-{user}"
+
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        probe = root / ".ollie-write-probe"
+        probe.mkdir(exist_ok=True)
+        probe.rmdir()
+        return
+    except OSError as exc:
+        fallback = ROOT / ".test-tmp" / "pytest"
+        fallback.mkdir(parents=True, exist_ok=True)
+        config.option.basetemp = str(fallback)
+        config.issue_config_time_warning(
+            pytest.PytestWarning(
+                f"{root} is not usable ({exc.__class__.__name__}: {exc}), so temporary "
+                f"files are going to {fallback} instead.\n"
+                f"To repair it, from an Administrator prompt:\n"
+                f'    takeown /F "{root}" /R /D Y && rmdir /S /Q "{root}"'
+            ),
+            stacklevel=2,
+        )
 
 
 class FakeOllama:
@@ -52,9 +100,17 @@ class FakeOllama:
 
 
 @pytest.fixture
-def store(tmp_path: Path) -> Store:
+def store(tmp_path: Path) -> Iterator[Store]:
     # A fixed key keeps the encrypted columns exercised without touching the Keychain.
-    return Store(tmp_path / "test.db", key=b"0" * 32)
+    opened = Store(tmp_path / "test.db", key=b"0" * 32)
+    yield opened
+    # Closing is not tidiness, it is what makes the suite work on Windows. POSIX lets you
+    # unlink a file that is still open; Windows refuses, so an unclosed connection leaves
+    # test.db, test.db-wal and test.db-shm locked. pytest keeps the last three tmp_path
+    # trees and deletes the rest, that delete then fails, and the debris accumulates until
+    # the whole temp root is unusable and every test errors during setup rather than
+    # anywhere near the code that caused it.
+    opened.close()
 
 
 @pytest.fixture

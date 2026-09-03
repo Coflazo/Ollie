@@ -173,7 +173,25 @@ def cmd_reset(args: argparse.Namespace) -> int:
     return 0
 
 
+def _use_utf8_output() -> None:
+    """Stop a decorative character from taking the whole command down.
+
+    Ollie's own output contains a middle dot and an arrow. When stdout is a Windows console
+    on a legacy code page, or is redirected to a file, Python encodes with cp1252 and
+    `ollie probe > out.txt` dies with UnicodeEncodeError before printing anything at all.
+    Nothing here is a library-wide change: this is the entry point, which is the one place
+    entitled to decide how the process talks to its terminal.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main() -> int:
+    _use_utf8_output()
+
     parser = argparse.ArgumentParser(prog="ollie", description=__doc__)
     sub = parser.add_subparsers(dest="cmd")
 

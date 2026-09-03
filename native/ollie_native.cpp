@@ -15,7 +15,8 @@
 // be clever because that test is what proves they still agree. If the library fails to
 // build or load, Ollie behaves identically and runs slower.
 //
-// Build: ./native/build.sh  (one clang++ invocation, no CMake)
+// Build: python native/build.py  (one compiler invocation, no CMake). `build.sh` is a
+// shim onto the same script so the POSIX muscle memory still works.
 
 #include <algorithm>
 #include <cctype>
@@ -26,11 +27,32 @@
 #include <unordered_map>
 #include <vector>
 
-#if defined(__APPLE__)
+#if defined(_WIN32)
+// NOMINMAX is not optional. <windows.h> defines min and max as function-like macros, and
+// with them in scope every std::min(a, b) in this file expands into something that is not
+// valid C++ ("illegal token on right side of ::"). It is the single most common way a
+// portable translation unit stops compiling the first time it meets Windows.
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <intrin.h>
+#elif defined(__APPLE__)
 #include <sys/sysctl.h>
 #include <sys/types.h>
 #elif defined(__linux__)
 #include <cstdio>
+#endif
+
+// MSVC exports nothing from a DLL unless each symbol says so, and a library with no
+// exported symbols loads perfectly well and then fails at the first ctypes lookup. GCC and
+// Clang export by default, so the attribute there is only insurance against a future
+// -fvisibility=hidden.
+#if defined(_WIN32)
+#define OLLIE_API __declspec(dllexport)
+#elif defined(__GNUC__)
+#define OLLIE_API __attribute__((visibility("default")))
+#else
+#define OLLIE_API
 #endif
 
 namespace {
@@ -74,14 +96,43 @@ std::pair<std::vector<uint32_t>, std::vector<uint32_t>> intern(
     return {std::move(ea), std::move(eb)};
 }
 
-constexpr uint64_t kMod = (1ULL << 61) - 1;  // Mersenne prime: mulmod without __int128 pain
+constexpr uint64_t kMod = (1ULL << 61) - 1;  // Mersenne prime: reduction is a shift and an add
 constexpr uint64_t kBase = 1000003;
 
-inline uint64_t mulmod(uint64_t x, uint64_t y) {
+// The full 128-bit product of two 64-bit values, as a high and a low half.
+//
+// GCC and Clang have __uint128_t and MSVC does not, which is why this is a function rather
+// than one line inside mulmod. The generic branch is exact on any compiler and any width;
+// it exists so a toolchain nobody here has tested still produces the same numbers, which is
+// what tests/test_native_parity.py checks against the Python twin.
+inline void mul64(uint64_t x, uint64_t y, uint64_t& high, uint64_t& low) {
+#if defined(__SIZEOF_INT128__)
     __uint128_t z = static_cast<__uint128_t>(x) * y;
-    uint64_t lo = static_cast<uint64_t>(z & kMod);
-    uint64_t hi = static_cast<uint64_t>(z >> 61);
-    uint64_t r = lo + hi;
+    low = static_cast<uint64_t>(z);
+    high = static_cast<uint64_t>(z >> 64);
+#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_AMD64))
+    low = _umul128(x, y, &high);
+#elif defined(_MSC_VER) && defined(_M_ARM64)
+    low = x * y;
+    high = __umulh(x, y);
+#else
+    const uint64_t xl = x & 0xFFFFFFFFULL, xh = x >> 32;
+    const uint64_t yl = y & 0xFFFFFFFFULL, yh = y >> 32;
+    const uint64_t ll = xl * yl, lh = xl * yh, hl = xh * yl, hh = xh * yh;
+    const uint64_t mid = (ll >> 32) + (lh & 0xFFFFFFFFULL) + (hl & 0xFFFFFFFFULL);
+    low = (mid << 32) | (ll & 0xFFFFFFFFULL);
+    high = hh + (lh >> 32) + (hl >> 32) + (mid >> 32);
+#endif
+}
+
+inline uint64_t mulmod(uint64_t x, uint64_t y) {
+    uint64_t high = 0, low = 0;
+    mul64(x, y, high, low);
+    // z = high * 2^64 + low, so the low 61 bits are low & kMod and the rest, z >> 61, is
+    // (high << 3) | (low >> 61). Both operands are below 2^61, so the shifted half fits.
+    const uint64_t lo = low & kMod;
+    const uint64_t hi = (high << 3) | (low >> 61);
+    const uint64_t r = lo + hi;
     return r >= kMod ? r - kMod : r;
 }
 
@@ -139,8 +190,13 @@ bool has_common_run(const std::vector<uint32_t>& a, const std::vector<uint32_t>&
 extern "C" {
 
 // Physical RAM in bytes, 0 if it cannot be determined.
-uint64_t ollie_physical_ram(void) {
-#if defined(__APPLE__)
+OLLIE_API uint64_t ollie_physical_ram(void) {
+#if defined(_WIN32)
+    MEMORYSTATUSEX status;
+    status.dwLength = sizeof(status);
+    if (GlobalMemoryStatusEx(&status)) return status.ullTotalPhys;
+    return 0;
+#elif defined(__APPLE__)
     uint64_t mem = 0;
     size_t len = sizeof(mem);
     int mib[2] = {CTL_HW, HW_MEMSIZE};
@@ -171,7 +227,7 @@ uint64_t ollie_physical_ram(void) {
 // O((n + m) log n) expected time with no large allocation. Over a 120-word reply against
 // a 900-word passage that is roughly two orders of magnitude fewer operations, which is
 // what lets this run against every retrieved passage on every single turn.
-int32_t ollie_longest_overlap(const char* reply, const char* source) {
+OLLIE_API int32_t ollie_longest_overlap(const char* reply, const char* source) {
     const std::vector<std::string> wa = tokenize(reply);
     const std::vector<std::string> wb = tokenize(source);
     if (wa.empty() || wb.empty()) return 0;
@@ -198,7 +254,7 @@ int32_t ollie_longest_overlap(const char* reply, const char* source) {
 //
 // partial_sort rather than a full sort: the caller wants three or four passages out of a
 // pool of forty, and there is no reason to order the rest.
-int32_t ollie_rank(const double* lexical, const int32_t* category_hit,
+OLLIE_API int32_t ollie_rank(const double* lexical, const int32_t* category_hit,
                    const int32_t* lengths, int32_t n, int32_t k, int32_t* out_indices) {
     if (n <= 0 || k <= 0 || !lexical || !category_hit || !lengths || !out_indices) {
         return 0;
@@ -250,7 +306,7 @@ int32_t ollie_rank(const double* lexical, const int32_t* category_hit,
 //   ints   : 5 per record - importance, locked, is_commitment, sensitivity, needs_confirm
 //            (sensitivity: 0 normal, 1 personal, 2 special category)
 //   doubles: 2 per record - confidence, age in days
-int32_t ollie_score_memories(const char* terms, const char* texts, const int32_t* ints,
+OLLIE_API int32_t ollie_score_memories(const char* terms, const char* texts, const int32_t* ints,
                              const double* doubles, int32_t n, int32_t n_ints,
                              int32_t n_doubles, double* out_scores) {
     if (n <= 0 || !out_scores || !ints || !doubles) return 0;
@@ -314,6 +370,6 @@ int32_t ollie_score_memories(const char* terms, const char* texts, const int32_t
     return n;
 }
 
-const char* ollie_version(void) { return "ollie_native 0.2.0"; }
+OLLIE_API const char* ollie_version(void) { return "ollie_native 0.2.0"; }
 
 }  // extern "C"

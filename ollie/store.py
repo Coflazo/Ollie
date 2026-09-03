@@ -2,9 +2,10 @@
 
 Two things make this more than a wrapper around sqlite3:
 
-- Message bodies and memory values are encrypted at rest with AES-GCM, keyed from the
-  macOS Keychain. A stolen copy of ollie.db is not a readable transcript of someone's
-  private conversations. `python -m ollie dump` decrypts for debugging.
+- Message bodies and memory values are encrypted at rest with AES-GCM, keyed from whatever
+  the operating system provides: the Keychain on macOS, DPAPI on Windows, the freedesktop
+  secret service on Linux. A stolen copy of ollie.db is not a readable transcript of
+  someone's private conversations. `python -m ollie dump` decrypts for debugging.
 - Chunks carry both a FTS5 lexical index and an int8-quantised embedding blob, so
   retrieval can fuse the two without a vector database.
 """
@@ -14,7 +15,9 @@ from __future__ import annotations
 import base64
 import json
 import os
+import platform
 import secrets
+import shutil
 import sqlite3
 import subprocess
 import time
@@ -179,7 +182,13 @@ END;
 # --------------------------------------------------------------------------- crypto
 
 
-def _keychain_get() -> bytes | None:
+# Every desktop operating system has somewhere better to keep a key than a file the
+# application owns, and each one calls it something different. The point of the three
+# implementations below is that a stolen copy of the data directory is not enough to read
+# anyone's conversations on any of them, which was only true on macOS before.
+
+
+def _macos_keychain_get() -> bytes | None:
     try:
         out = subprocess.run(
             ["security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-w"],
@@ -187,12 +196,12 @@ def _keychain_get() -> bytes | None:
         )
         if out.returncode == 0 and out.stdout.strip():
             return base64.b64decode(out.stdout.strip())
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError, ValueError):
         pass
     return None
 
 
-def _keychain_put(key: bytes) -> bool:
+def _macos_keychain_put(key: bytes) -> bool:
     try:
         out = subprocess.run(
             ["security", "add-generic-password", "-U", "-s", KEYCHAIN_SERVICE,
@@ -204,28 +213,143 @@ def _keychain_put(key: bytes) -> bool:
         return False
 
 
+def _libsecret_get() -> bytes | None:
+    """The freedesktop secret service, which is what GNOME Keyring and KWallet both speak."""
+    if not shutil.which("secret-tool"):
+        return None
+    try:
+        out = subprocess.run(
+            ["secret-tool", "lookup", "service", KEYCHAIN_SERVICE, "account", "ollie"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if out.returncode == 0 and out.stdout.strip():
+            return base64.b64decode(out.stdout.strip())
+    except (OSError, subprocess.SubprocessError, ValueError):
+        pass
+    return None
+
+
+def _libsecret_put(key: bytes) -> bool:
+    if not shutil.which("secret-tool"):
+        return False
+    try:
+        out = subprocess.run(
+            ["secret-tool", "store", "--label=Ollie local key",
+             "service", KEYCHAIN_SERVICE, "account", "ollie"],
+            input=base64.b64encode(key).decode(), capture_output=True, text=True,
+            timeout=10,
+        )
+        return out.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def _dpapi(protect: bool, payload: bytes) -> bytes | None:
+    """Windows DPAPI: encrypt to the logged-in user account, decryptable by nobody else.
+
+    This is the counterpart to the macOS Keychain rather than to the file fallback. There is
+    no Windows API that hands back a stored secret, so the ciphertext still lives in
+    data/local.key; the difference is that the file is now useless to anyone who copies it,
+    because the key that opens it is held by the operating system against this user's login.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    class Blob(ctypes.Structure):
+        _fields_ = [("cbData", wintypes.DWORD),
+                    ("pbData", ctypes.POINTER(ctypes.c_char))]
+
+    try:
+        crypt32, kernel32 = ctypes.windll.crypt32, ctypes.windll.kernel32
+    except (AttributeError, OSError):
+        return None
+
+    buffer = ctypes.create_string_buffer(payload, len(payload))
+    source = Blob(len(payload), ctypes.cast(buffer, ctypes.POINTER(ctypes.c_char)))
+    result = Blob()
+    call = crypt32.CryptProtectData if protect else crypt32.CryptUnprotectData
+    CRYPTPROTECT_UI_FORBIDDEN = 0x1  # never block a headless run on a dialog
+    try:
+        ok = call(ctypes.byref(source), None, None, None, None,
+                  CRYPTPROTECT_UI_FORBIDDEN, ctypes.byref(result))
+    except OSError:
+        return None
+    if not ok:
+        return None
+    try:
+        return ctypes.string_at(result.pbData, result.cbData)
+    finally:
+        kernel32.LocalFree(result.pbData)
+
+
+def _restrict(path: Path) -> None:
+    """Make the key file readable only by its owner, in whichever vocabulary applies.
+
+    chmod is not a no-op on Windows, which is worse than if it were: it toggles the
+    read-only attribute and returns successfully, so the call looks like it worked while
+    the file stays readable by every other account on the machine. icacls is the real
+    equivalent, and it is best effort because a locked-down or non-NTFS volume can refuse.
+    """
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+    if os.name != "nt":
+        return
+    user = os.environ.get("USERNAME")
+    if not user or not shutil.which("icacls"):
+        return
+    try:
+        subprocess.run(["icacls", str(path), "/inheritance:r", "/grant:r", f"{user}:F"],
+                       capture_output=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
 def load_key() -> bytes:
     """Fetch the local encryption key, creating it on first launch.
 
-    Falls back to a file in the data directory when the Keychain is unavailable (Linux,
-    CI, a locked keychain). The fallback is chmod 0600 and the README says plainly that
-    it is weaker than the Keychain path.
+    Order: an explicit key from the environment, then this platform's secret store, then a
+    file in the data directory. The file is the last resort, and on Windows its contents are
+    still DPAPI-protected; it is only a bare key on a system with no secret service at all,
+    which in practice means a Linux server or CI. The README says so plainly.
     """
     if env := os.environ.get("OLLIE_KEY_B64"):
         return base64.b64decode(env)
-    if key := _keychain_get():
-        return key
 
-    key = AESGCM.generate_key(bit_length=256)
-    if _keychain_put(key):
+    system = platform.system()
+    if system == "Darwin" and (key := _macos_keychain_get()):
+        return key
+    if system == "Linux" and (key := _libsecret_get()):
         return key
 
     config.ensure_dirs()
-    fallback = config.DATA / "local.key"
-    if fallback.exists():
-        return base64.b64decode(fallback.read_bytes())
-    fallback.write_bytes(base64.b64encode(key))
-    fallback.chmod(0o600)
+    stored = config.DATA / "local.key"
+    if stored.exists():
+        raw = stored.read_bytes()
+        if system == "Windows" and (opened := _dpapi(False, raw)):
+            return base64.b64decode(opened)
+        try:
+            return base64.b64decode(raw)
+        except ValueError:
+            # A DPAPI blob on a machine that can no longer unprotect it, usually a copied
+            # data directory. Refusing here beats returning a key that decrypts nothing.
+            raise RuntimeError(
+                f"{stored} cannot be read on this machine. It was protected for a "
+                "different Windows account. Delete it to start fresh, or set OLLIE_KEY_B64."
+            ) from None
+
+    key = AESGCM.generate_key(bit_length=256)
+    if system == "Darwin" and _macos_keychain_put(key):
+        return key
+    if system == "Linux" and _libsecret_put(key):
+        return key
+
+    encoded = base64.b64encode(key)
+    if system == "Windows" and (sealed := _dpapi(True, encoded)):
+        encoded = sealed
+    stored.write_bytes(encoded)
+    _restrict(stored)
     return key
 
 
@@ -318,6 +442,17 @@ class Store:
 
     def close(self) -> None:
         self.db.close()
+
+    # Closing matters more on Windows than the long-running server suggests. POSIX lets a
+    # file be unlinked while it is still open, so a leaked connection there is only a leaked
+    # connection; Windows refuses the delete outright, and an unclosed Store leaves
+    # ollie.db, ollie.db-wal and ollie.db-shm locked against the process that made them.
+    # Anything short-lived, a test or a script, should use the `with` form.
+    def __enter__(self) -> "Store":
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self.close()
 
     # -- profiles / personas / sessions ------------------------------------------
 
