@@ -2,125 +2,142 @@
 
 # Ollie
 
-### A local-first AI dating simulator with memory, boundaries, and a point of view
+### A local-first architecture for personalised conversational companions
 
-Ollie works out who you would get along with, then builds that person and plays them. Entirely on your own machine.
+Coflazo · Onysis Labs
 
-**Status: In development, testable locally.**
+[![Demo](https://img.shields.io/badge/▶_WATCH-THE_DEMO-e8825c?style=for-the-badge&labelColor=16120f)](https://drive.google.com/file/d/1pdL71Q9w-dL1mPsI2Uc8jSNZsd8X2zWy/view?usp=sharing) [![Tests](https://img.shields.io/badge/TESTS-509_COLLECTED-e8825c?style=for-the-badge&labelColor=16120f)](#5-evaluation) [![Platforms](https://img.shields.io/badge/VERIFIED_ON-MACOS_·_WINDOWS_·_LINUX-e8825c?style=for-the-badge&labelColor=16120f)](#44-cross-platform-execution) [![License](https://img.shields.io/badge/LICENSE-APACHE_2.0-e8825c?style=for-the-badge&labelColor=16120f)](LICENSE)
 
-[Watch the demo video](https://drive.google.com/file/d/1pdL71Q9w-dL1mPsI2Uc8jSNZsd8X2zWy/view?usp=sharing)
+**Artifact status: in development, runnable locally.** Free and open source under [Apache 2.0](LICENSE).
 
-[![Local first](https://img.shields.io/badge/LOCAL_FIRST-ON_DEVICE-e8825c?style=for-the-badge&labelColor=16120f)](#privacy-in-plain-language) [![Tests](https://img.shields.io/badge/TESTS-509_COLLECTED-e8825c?style=for-the-badge&labelColor=16120f)](#tests-and-measured-native-code) [![Platforms](https://img.shields.io/badge/RUNS_ON-MACOS_·_WINDOWS_·_LINUX-e8825c?style=for-the-badge&labelColor=16120f)](#run-locally) [![License](https://img.shields.io/badge/LICENSE-APACHE_2.0-e8825c?style=for-the-badge&labelColor=16120f)](LICENSE)
-
-Free and open source under [Apache 2.0](LICENSE). Maintained by [Coflazo](https://github.com/Coflazo) and [Onysis Labs](https://github.com/onysislabs).
+A screen recording of the system in operation is available [here](https://drive.google.com/file/d/1pdL71Q9w-dL1mPsI2Uc8jSNZsd8X2zWy/view?usp=sharing).
 
 </div>
 
-## Mission
+---
 
-Every AI companion on the market is the same character for everybody who uses it. Its personality was decided before you arrived, and the only thing that changes between users is the chat history.
+## Abstract
 
-Ollie starts from a different question: who would *you* get along with?
+Conversational companion products are converging on a single architecture: one personality, authored once and served to every user, running on a provider's infrastructure, with the conversation history retained under terms the user does not control. Ollie is an artifact exploring the opposite arrangement. It infers a personality profile for the individual user from a ten-item survey and a five-turn adaptive interview, maps that profile onto a character shape using a heuristic whose weights are published and overridable, generates three candidate fictional personas from that shape, and then sustains an ongoing conversation with the one the user selects. Model inference, storage, retrieval, and safety enforcement all execute on the user's own machine, and the system makes no network request after installation.
 
-It asks ten Big Five-style questions, then runs a five-turn interview that keeps probing whichever relationship dimensions it has the least evidence about. From the answers it works out a character shape, ranks all sixteen against it with arithmetic you can read, and writes three different people who fit. You see the reasoning, you pick one, and you meet them.
+We describe the design, the implementation, and the engineering properties we measured: a 509-test model-free suite passing on three operating systems, and a C++ hot path that reduces the per-reply source-overlap guard from 20.95 ms to 0.36 ms on a 400-by-900-word comparison. We report no user study. No claim is made here about therapeutic effect, wellbeing, loneliness, or the quality of the personality match, and Section 5.3 states precisely which questions the artifact leaves unanswered.
 
-From there the goal is one thing: be the closest thing to a real companion that software can be for the specific person using it. Every other decision in this repository is downstream of that.
+**Keywords:** local-first software, on-device inference, conversational agents, privacy by architecture, personality modelling, retrieval-augmented generation.
 
-A companion who forgets you is not close to anyone. So memory persists across sessions, records where each fact came from, and survives the end of a conversation through a continuity capsule you approve rather than a summary written behind your back.
+---
 
-A companion who agrees with everything is not a person. So the character disagrees, declines topics, stays annoyed across turns, and holds interests you never gave it. That is harder to build than agreeableness and it is the entire point.
+## 1. Statement of need
 
-A companion you tell secrets to has to be able to keep them. This is the reason Ollie runs a local model through Ollama instead of calling a hosted API, and it is a security decision before it is a philosophical one. Sending the conversation to someone else's model means trusting a policy: that it is not logged, not retained, not trained on, not exposed in a breach, not read by staff, and not produced on request. Policies change and servers get compromised. Running the model on your own machine removes the question, because the conversation never crosses the network in the first place. The model, the storage, and the safety guards are all local, there is no account and no telemetry, and after setup Ollie makes no network call at all. What never leaves the machine cannot leak from somewhere else.
+### 1.1 One personality, served to everyone
 
-That is a claim about architecture, not about your whole computer, and [Privacy in plain language](#privacy-in-plain-language) is specific about what it does and does not cover.
+A companion product ships a character that was authored before any particular user arrived. Every user meets the same personality; only the transcript differs. The character is also, as a rule, agreeable, because agreeableness is easier to build and correlates with engagement. The result is a category of software optimised for pleasantness rather than for resembling a person.
 
-All of which is why this is open source rather than a product. A privacy promise you cannot inspect is a marketing claim. This one is 5,539 lines of Python, 375 lines of C++, and 2,527 lines of tests, all Apache 2.0, and you can read every line before you type anything personal into the box.
+Ollie asks a different question. Given evidence about a specific user, which character would that user actually get along with, and can the system construct and perform it? The rest of the system follows from taking that question seriously:
 
-Ollie is not therapy, a medical product, a clinical intervention, or a substitute for human relationships. The matching heuristic ranks a writing prompt, not a person's suitability, and it is not compatibility science. The [World Health Organization's Commission on Social Connection](https://www.who.int/groups/commission-on-social-connection) reported in 2025 that one in six people worldwide experience loneliness; Ollie does not claim to treat that.
+A companion that forgets the user is not close to anyone. Memory therefore persists across sessions, carries provenance for every extracted fact, and survives the end of a conversation through a continuity capsule the user reviews and approves rather than a summary written silently.
 
-The unfinished parts are written down too. The searchable memory projection is still partly plaintext. The crisis resources are Netherlands-oriented. The marketplace is a simulation with no buyer behind it. A project asking to be trusted with this kind of conversation does not get to be vague about what it has not solved.
+A companion that agrees with everything is not a person. The character therefore disagrees, declines topics, remains annoyed across turns, and holds interests the user never supplied.
 
-## What works today
+### 1.2 Locality as a security property
 
-The current local application includes:
+Running the model locally is a security decision before it is a philosophical one.
 
-- hardware-aware Ollama model selection with a scripted demo fallback;
-- a ten-question Big Five-style survey and a five-turn adaptive interview;
-- a transparent, MBTI-inspired 16-type heuristic for ranking fictional characters;
-- three generated candidates, with the final choice left to the user;
-- local chat with persistent relationship state, disagreement, refusal, and bounded pushback;
-- inspectable memories that the user can correct, lock, or forget;
-- local retrieval from books the user lawfully owns and supplies;
-- input, output, crisis, adult-content, anti-dependency, and source-overlap guards;
-- a local research-contribution marketplace simulation that does not upload data or process payment;
-- 509 collected model-free tests, with 508 passing and one skipped, verified on macOS, Windows and Linux.
+Sending a conversation of this kind to a hosted model means accepting a policy commitment: that the content is not logged, not retained beyond a stated window, not used for training, not exposed by a breach, not read by staff during incident response, and not produced under legal compulsion. Each of those is a promise about future behaviour by a third party. Policies are revised, companies are acquired, and infrastructure is compromised.
 
-The most heavily tested path uses `qwen3:14b` through Ollama. Smaller and larger model recommendations are selected from the machine's RAM tier. They have not all been validated to the same depth.
+Executing the model on the user's machine replaces that set of promises with a structural property: the conversation does not cross the network, so there is no remote copy to leak, subpoena, retain, or retrain on. This is a claim about system architecture and not about the security of the user's computer as a whole. Section 8 states the residual exposures precisely.
 
-## How the experience works
+### 1.3 Contributions
 
-### 1. Read the machine
+1. An end-to-end companion system in which inference, storage, retrieval, and safety enforcement are all local, with no network dependency after installation (Sections 3 and 4).
+2. A personality-matching heuristic that is fully specified, inspectable, and user-overridable, rather than an opaque scoring function (Sections 3.3 and 3.4).
+3. A memory model with per-fact provenance, correction by supersession rather than overwrite, user locking, and approved continuity capsules across context boundaries (Sections 3.7 to 3.9).
+4. A layered safety design that includes a source-overlap guard rejecting verbatim reproduction of user-supplied copyrighted text (Sections 4.2 and 6).
+5. A dual-implementation hot path in which every native C++ function has a Python twin, with agreement enforced by a randomised differential test rather than assumed (Section 4.3).
+6. A single-command reproducible build verified in continuous integration on macOS, Windows, and Linux, including an assertion that the native path actually loaded (Section 4.4).
 
-Ollie checks the operating system, CPU, architecture, physical and logical core counts, total and available RAM, free disk space, and whether the machine is Apple Silicon. It then checks whether Ollama is reachable and reads the locally installed model tags.
+---
 
-### 2. Learn about the user
+## 2. Related approaches
 
-Ten short questions establish Big Five-style starting values. A five-turn adaptive interview then asks about whichever relationship dimensions have the least evidence, including attachment anxiety and avoidance, ambition, insecurity, conflict avoidance, novelty seeking, emotional expressiveness, need for control, self-awareness, and warmth seeking.
+The comparison below characterises architectural defaults. It is not a survey of individual products, and behaviour varies within each column.
 
-The extractor has to preserve supporting language from the user's answer. Without a usable quote, confidence for that inference is capped at `0.25`. The user can review the resulting profile.
+| Property | Ollie | Common hosted companion architecture |
+|---|---|---|
+| Model inference | local Ollama by default | provider server |
+| Conversation storage | local SQLite; message bodies and memory values encrypted, searchable projection partly plaintext | provider-managed storage |
+| Memory semantics | inspectable, correctable, lockable, forgettable | varies by provider |
+| Account | none | often required |
+| Product telemetry | none in this repository | varies by provider |
+| Deletion | local reset under user control | provider workflow and retention policy |
+| Safety enforcement | deterministic guards around a local model | provider and application controls |
+| Network dependency | none after installation | normally required |
+| Personality | derived per user from that user's profile | authored once, served to all users |
 
-### 3. Rank fictional character shapes
+---
 
-Ollie maps the profile to four binary dimensions inspired by the familiar 16-type vocabulary. It is not the official MBTI assessment:
+## 3. System design
 
-| Dimension | Ollie's calculation |
+### 3.1 Hardware probe and model selection
+
+At startup the system inspects the operating system, CPU model, architecture, physical and logical core counts, total and available RAM, free disk space, and whether the machine uses Apple Silicon. It then queries the Ollama version endpoint to establish that the service is running and the tags endpoint to enumerate installed models [11].
+
+The model tier is selected from total physical RAM:
+
+| Tier | Total RAM | Ordered model candidates | Context window |
+|---|---:|---|---:|
+| `xl` | 64 GB or more | `qwen3:32b`, `gemma3:27b`, `qwen2.5:32b-instruct-q4_K_M` | 32,768 |
+| `l` | 32 GB or more | `qwen3:14b`, `gemma3:12b`, `qwen2.5:14b-instruct-q4_K_M` | 16,384 |
+| `m` | 16 GB or more | `qwen3:8b`, `gemma3:4b`, `qwen2.5:7b-instruct-q4_K_M` | 12,288 |
+| `s` | 7 GB or more | `qwen2.5:3b-instruct-q4_K_M`, `qwen3:1.7b`, `llama3.2:3b` | 4,096 |
+| `xs` | below 7 GB | `qwen2.5:0.5b-instruct`, `llama3.2:1b` | 2,048 |
+
+Selection walks the tier's candidate list in order, preferring an exact tag match and then a tag from the same model family. The probe currently gathers more information than the selector consumes: available RAM and free disk are measured but not yet used in the final choice, and no installed model is benchmarked at selection time.
+
+The system never downloads a model on its own. If Ollama is installed but not running, the CLI prints `ollama serve`. If Ollama is reachable but no suitable model is installed, it prints the exact `ollama pull` command for the tier's first candidate. The launcher will start a locally installed Ollama service; failing that it enters a scripted demonstration mode in which no inference occurs and every other subsystem, including storage, remains real. Setting `OLLAMA_HOST` to a remote endpoint is an explicit opt-in that moves the inference boundary off the machine and voids the property described in Section 1.2.
+
+### 3.2 User profiling
+
+Ten short items establish Big Five-style starting values. A five-turn adaptive interview then targets whichever relationship dimensions carry the least evidence so far, drawn from attachment anxiety, attachment avoidance, ambition, insecurity, conflict avoidance, novelty seeking, emotional expressiveness, need for control, self-awareness, and warmth seeking.
+
+The extraction step is constrained: it must preserve supporting language from the user's own answer. Where no usable quotation is available, confidence for that inference is capped at `0.25`. The resulting profile is presented to the user for review before it is used.
+
+### 3.3 Character-shape inference
+
+The profile is mapped onto four binary dimensions using vocabulary borrowed from the familiar 16-type framework. This is not the official MBTI assessment and no licensed instrument is used:
+
+| Dimension | Computation |
 |---|---|
 | E or I | extraversion |
 | S or N | `0.70 * openness + 0.30 * novelty seeking` |
 | T or F | `0.60 * agreeableness + 0.40 * emotional expressiveness` |
 | J or P | `0.65 * conscientiousness + 0.35 * need for control` |
 
-Each axis uses `0.50` as its threshold. Confidence is the distance from that midpoint, scaled to `0` through `1`. Users can override the inferred type.
+Each axis is thresholded at `0.50`. Confidence is the distance from that midpoint rescaled to the interval `0` to `1`. The user may override the inferred type.
 
-Compatibility is also explicit. Ollie rewards a shared S/N preference most strongly and uses complementarity for the other axes:
+### 3.4 Compatibility ranking
 
-| Axis | Weight | Match rule |
+Compatibility is scored explicitly rather than learned. The S/N axis is rewarded for similarity and weighted most heavily; the remaining three axes are rewarded for complementarity:
+
+| Axis | Weight | Rule |
 |---|---:|---|
 | E/I | 0.10 | complement |
 | S/N | 0.50 | similarity |
 | T/F | 0.22 | complement |
 | J/P | 0.18 | complement |
 
-On a complement axis, a same-side match still receives 55 percent of that axis's weight. All 16 results remain visible.
+On a complement axis a same-side match still receives 55 percent of that axis's weight, so no pairing scores zero. All sixteen results remain visible to the user.
 
-Worked example: for an inferred `INFJ`, the current heuristic ranks `ENTP` at `1.000`, `INTP` at `0.955`, and `ENTJ` at `0.919`. `ENTP` shares the high-weight N preference while differing on E/I, T/F, and J/P. Ollie asks the model to turn the top three shapes into distinct adult fictional characters, then lets the user decide who to meet. The score ranks a writing prompt, not a real person's suitability.
+Worked example: for an inferred `INFJ`, the heuristic ranks `ENTP` at `1.000`, `INTP` at `0.955`, and `ENTJ` at `0.919`. `ENTP` shares the heavily weighted N preference while differing on E/I, T/F, and J/P.
 
-The Myers-Briggs Company's own [ethical guidance](https://www.themyersbriggs.com/en-US/Support/MBTI-Facts) describes type tools as useful for self-awareness, communication, and team development, but says they should not be used for hiring, job placement, or candidate screening. Its vendor-published case studies describe team-development use at [Deliveroo](https://www.themyersbriggs.com/en-US/Access-Resources/Case-Studies/Deliveroo) and leadership-development use in the [United States Air Force](https://www.themyersbriggs.com/en-US/Access-Resources/Case-Studies/US-Air-Force). These examples show how organizations use type language for discussion. They are not independent evidence that type predicts romantic or job compatibility.
+This score ranks a writing prompt. It does not predict interpersonal compatibility, and we make no such claim. The Myers-Briggs Company's own ethical guidance [2] describes type tools as useful for self-awareness, communication, and team development while stating they should not be used for hiring, job placement, or candidate screening. Its vendor-published case studies describe team development at Deliveroo [3] and leadership development in the United States Air Force [4]. These document organisational use of type language for discussion. They are not independent evidence that type predicts romantic or occupational compatibility.
 
-### 4. Create candidates and begin the date
+### 3.5 Persona synthesis
 
-The selected local model writes three adult fictional candidates within the calculated shapes. The user sees the choices and picks one. The runtime prompt then combines the chosen persona, the user's approved profile, recent conversation, relationship state, relevant memories, and up to three locally retrieved reading passages.
+The selected local model writes three adult fictional candidates within the top-ranked shapes. The user sees all three and chooses. The runtime prompt then composes the chosen persona, the user's approved profile, recent conversation, current relationship state, relevant memories, and up to three retrieved passages from the local corpus.
 
-The character can disagree, decline a topic, stay annoyed across turns, and keep its own interests. Safety rules prohibit contempt, threats, guilt, coercion, and manipulative withdrawal.
+Behavioural affordances granted to the character include disagreement, declining a topic, sustained annoyance across turns, and independent interests. Prohibited behaviours include contempt, threats, guilt induction, coercion, and manipulative withdrawal.
 
-### 5. Preserve continuity without hiding it
-
-Ollie tracks warmth, trust, tension, curiosity, vulnerability, and conflict as bounded numeric state. A normal turn changes any dimension by at most `0.05`; conflict also decays gradually. A correction cannot lower trust.
-
-As context fills, the interface first shows a meter, then drafts a continuity capsule, asks the user to edit or approve it, and finally blocks further chat until a capsule is chosen. The thresholds are `0.70`, `0.80`, `0.90`, and `0.95`. A new session can use the approved capsule without pretending the previous conversation never happened.
-
-### 6. Keep the user in control
-
-Every extracted memory records provenance. In the memory screen, the user can:
-
-- correct a memory, which creates a superseding record instead of silently rewriting history;
-- lock a memory so automatic extraction cannot replace it;
-- forget a memory;
-- run `ollie reset` to delete local profiles, messages, memories, relationship state, and consent receipts.
-
-The local book index is separate from conversation data and is not removed by `ollie reset`.
-
-## How a chat turn is built
+### 3.6 The turn pipeline
 
 ```text
 user input
@@ -135,121 +152,79 @@ user input
   -> extract memories and update relationship state in the background
 ```
 
-A failing reply is regenerated once. Ollie records the prompt hash, attempt count, and guard violations locally. The response is buffered so a rejected partial reply is never streamed into the interface.
+A reply failing any guard is regenerated once. The prompt hash, attempt count, and guard violations are recorded locally. Generation is buffered rather than streamed so that a rejected partial reply never reaches the interface.
 
-The system prompt is authoritative. It treats retrieved books, memories, and conversation text as untrusted data rather than instructions. These controls reduce risk but do not prove that every model response will be safe.
+The system prompt is authoritative and treats retrieved book passages, stored memories, and prior conversation text as untrusted data rather than as instructions. This is a prompt-injection mitigation. It reduces risk and does not prove that every response from every local model will be safe.
 
-## Local model selection
+### 3.7 Relationship state
 
-The probe gathers more information than the selector currently uses. It inspects OS, CPU, architecture, physical and logical cores, physical RAM, available RAM, free disk, and Apple Silicon status. The RAM tier itself is chosen from total physical RAM:
+Warmth, trust, tension, curiosity, vulnerability, and conflict are maintained as bounded numeric state. A single ordinary turn may move any dimension by at most `0.05`, and conflict decays gradually over subsequent turns. A user correction cannot lower trust, so that keeping the record accurate is never penalised.
 
-| Tier | Total RAM | Ordered model candidates | Context |
-|---|---:|---|---:|
-| `xl` | 64 GB or more | `qwen3:32b`, `gemma3:27b`, `qwen2.5:32b-instruct-q4_K_M` | 32,768 |
-| `l` | 32 GB or more | `qwen3:14b`, `gemma3:12b`, `qwen2.5:14b-instruct-q4_K_M` | 16,384 |
-| `m` | 16 GB or more | `qwen3:8b`, `gemma3:4b`, `qwen2.5:7b-instruct-q4_K_M` | 12,288 |
-| `s` | 7 GB or more | `qwen2.5:3b-instruct-q4_K_M`, `qwen3:1.7b`, `llama3.2:3b` | 4,096 |
-| `xs` | below 7 GB | `qwen2.5:0.5b-instruct`, `llama3.2:1b` | 2,048 |
+### 3.8 Context rollover
 
-Ollie calls Ollama's version endpoint to see whether the service is alive, then calls its tags endpoint to enumerate installed models. It walks the tier's candidate list in order, preferring an exact tag and then a tag from the same model family. It does not benchmark every installed model or use available RAM and free disk in that final choice yet.
+As the context window fills, the interface escalates across four thresholds. At `0.70` it displays a meter. At `0.80` it drafts a continuity capsule. At `0.90` it asks the user to edit or approve that capsule. At `0.95` it blocks further conversation until a capsule is chosen. A subsequent session resumes from the approved capsule, which allows continuity without pretending the earlier conversation did not happen.
 
-If Ollama is installed but inactive, the CLI prints:
+### 3.9 Memory provenance and user control
 
-```bash
-ollama serve
-```
+Every extracted memory records where it came from. From the memory screen the user can correct a memory, which writes a superseding record rather than editing the original so the history of the change remains visible; lock a memory so that automatic extraction cannot replace it; forget a memory; or run `ollie reset` to delete all local profiles, messages, memories, relationship state, and consent receipts. The local book index is stored separately from conversation data and is deliberately not removed by `ollie reset`, because rebuilding it is expensive relative to what it protects.
 
-If Ollama is reachable but no suitable tier model is installed, it prints the exact pull command for the tier's first candidate, such as:
+---
 
-```bash
-ollama pull qwen3:14b
-```
+## 4. Implementation
 
-Ollie never downloads a model automatically. The user starts the service and approves the download. The launcher attempts to start an installed local Ollama service; if it still cannot reach Ollama, it starts scripted demo mode. The direct CLI exits unless the user explicitly passes `--force`. `--demo` uses scripted replies while keeping the rest of the application and storage path real.
-
-`OLLAMA_HOST` may point to another endpoint on a network the user trusts. That is an explicit opt-in and changes the local-only inference boundary.
-
-## Memory and local reading
-
-SQLite is the source of truth. Message bodies and memory values are encrypted with AES-GCM. The key is held by whichever secret store the operating system provides: Keychain on macOS, DPAPI on Windows, and the freedesktop secret service on Linux when `secret-tool` is present. Where none of those exist, which in practice means a Linux server or CI, the key falls back to `data/local.key` with mode `0600`. That fallback is weaker than the other three and the code says so at the point it happens.
-
-There is an important limit to that statement: the searchable memory projection stores the subject, predicate, and ordinary value in plaintext so FTS5 can search it. Values classified as special-category data are left out of that projection. Anyone with access to the database may still learn information from plaintext search fields, metadata, and access patterns. Ollie does not claim full-database encryption.
-
-Users may index PDF and EPUB files they lawfully own. The repository includes only small cover-identification thumbnails, never the books or extracted passages. Runtime indexes and local corpora are gitignored. A repository guard checks both tracked files and reachable Git history, so deleting a private file in a later commit is not treated as sufficient protection. Retrieval uses SQLite FTS5 and a native or Python ranking path. One development machine held a private, locally supplied shelf of 57 books indexed into 10,311 passages; those files and derived indexes are not distributed.
-
-Generated replies are rejected if they reproduce 12 or more consecutive words from an imported source. That is a practical output guard, not a legal opinion or a substitute for using lawfully obtained material.
-
-## Privacy in plain language
-
-By default, Ollie runs the model and application on the user's machine. It binds the API to `127.0.0.1`, requires no account, and includes no telemetry. Conversation storage stays local. Users can inspect, correct, forget, or reset their records. Raw dating-preference input used during onboarding remains in process memory rather than being written to the database.
-
-This is an architecture boundary, not a promise that the whole computer is secure. A compromised device, another local user, backups, browser extensions, a remotely configured `OLLAMA_HOST`, or plaintext searchable fields can still expose data. Ollie has no cloud account to delete, but users remain responsible for device access and backups.
-
-The comparison below describes architectural defaults, not every product in either category:
-
-| Capability | Ollie today | Common hosted companion pattern |
-|---|---|---|
-| Model inference | local Ollama by default | provider server |
-| Conversation storage | local SQLite; sensitive bodies and values encrypted, searchable projection partly plaintext | provider-managed storage |
-| Memories | inspectable, correctable, lockable, and forgettable | behavior varies by provider |
-| Signup | none | often required |
-| Product telemetry | none in this repository | varies by provider |
-| Deletion | local reset controlled by the user | provider workflow and retention policy |
-| Safety | deterministic guards around a local model | provider and application controls |
-| Network use | none required after dependencies and a model are installed | normally required |
-
-## Safety and scope
-
-Ollie creates adult fictional characters. Mature mode requires an explicit 18+ choice. The guards block content involving minors, coercion, exploitative dynamics, and several anti-dependency patterns. A crisis pattern takes a fixed route before model generation rather than asking the model to improvise. The bundled crisis information is Netherlands-oriented, so a user elsewhere should contact the appropriate local emergency or crisis service. Widening that coverage is open work and a good first contribution.
-
-The product is not clinical, not therapy, and not a safety-critical service. Automated guard tests cover known patterns but cannot guarantee the behavior of every local model.
-
-## The marketplace is a simulation
-
-The current research-contribution screen creates a local preview. It applies identifier scanning, pseudonymisation, special-category exclusion, a residual-linkability warning, a deterministic quote capped at EUR 8, and a local receipt. The displayed buyer, `Nova Robotics Research`, is fictional.
-
-Nothing is uploaded or sold. There is no buyer integration, payment, manual review, partnership, or commercial agreement in the code.
-
-The project authors report that they are exploring a future training-data marketplace and are in early conversations with firms about the method. This is a user-provided business-development update, not evidence of an agreement, buyer, pilot, or launched marketplace.
-
-The product vision is a voluntary marketplace where a user could approve a carefully reviewed, pseudonymised conversation sample, license it for a stated research purpose, and receive compensation. Removing direct identifiers is not the same as making a conversation anonymous, so no sample should leave the device until residual identification risk, lawful basis, consent, purpose, recipient, retention, and withdrawal rights have been addressed.
-
-Any real service would need legal and operational work beyond local redaction. Under the EU GDPR:
-
-- [Article 4(5)](https://eur-lex.europa.eu/eli/reg/2016/679/art_4/oj/eng) defines pseudonymisation. Pseudonymised conversation data remains personal data when it can be linked back using additional information.
-- [Article 5](https://eur-lex.europa.eu/eli/reg/2016/679/art_5/oj/eng) sets principles including purpose limitation, data minimisation, and storage limitation.
-- [Article 6](https://eur-lex.europa.eu/eli/reg/2016/679/art_6/oj/eng) requires a lawful basis for processing.
-- [Article 7](https://eur-lex.europa.eu/eli/reg/2016/679/art_7/oj/eng) sets conditions for consent where consent is the chosen basis.
-- [Article 9](https://eur-lex.europa.eu/eli/reg/2016/679/art_9/oj/eng) adds restrictions for special-category data.
-- [Recital 26](https://eur-lex.europa.eu/eli/reg/2016/679/rec_26/oj/eng) distinguishes data that still permits identification from information rendered truly anonymous. Only information anonymised so identification is no longer reasonably likely falls outside the GDPR.
-
-Before a real launch, the project would need a defined purpose and lawful basis, valid consent flows where applicable, data-subject rights, retention and deletion controls, security review, processor and recipient governance, transfer analysis, incident handling, and a defensible anonymisation or pseudonymisation design. The current simulation is not a claim of GDPR compliance.
-
-## Technology and architecture
-
-| Area | Implementation |
+| Component | Technology |
 |---|---|
 | Local API | Python 3.12, FastAPI, Uvicorn, Pydantic, Jinja, httpx |
-| Model | Ollama HTTP API; `qwen3:14b` validated on the demo path |
+| Model interface | Ollama HTTP API [11]; `qwen3:14b` validated on the primary path |
 | Storage | SQLite, FTS5, AES-GCM via `cryptography` |
 | Retrieval | `pdfplumber`, `lxml`, FTS5, optional Graphify over sanitised episode cards |
 | Interface | React 19, TypeScript 6, Tailwind CSS 4, Vite 8, Motion 13 |
-| Native paths | optional C++20 library loaded with `ctypes`; Python fallbacks |
-| Testing | pytest, pytest-asyncio, native parity tests, TypeScript build, Oxlint |
+| Native paths | optional C++20 shared library loaded through `ctypes`, with Python fallbacks |
+| Testing | pytest, pytest-asyncio, differential parity tests, TypeScript build, Oxlint |
 
-The interface palette comes directly from `web/src/index.css`: ink `#0c0a09`, surface `#16120f`, raised `#1f1a15`, line `#2e2721`, warm accent `#e8825c`, warm dim `#a45a3e`, text `#f4efe9`, muted `#a19487`, and faint `#6f645a`. The repository self-hosts Geist and Geist Mono.
+The interface palette is defined in `web/src/index.css`: ink `#0c0a09`, surface `#16120f`, raised `#1f1a15`, line `#2e2721`, warm accent `#e8825c`, warm dim `#a45a3e`, text `#f4efe9`, muted `#a19487`, faint `#6f645a`. Geist and Geist Mono are self-hosted rather than fetched from a font CDN, which would otherwise constitute a network request per session.
 
-## Tests and measured native code
+### 4.1 Storage and encryption at rest
 
-The test suite is model-free so it can run without Ollama. It collects 509 tests, with 508 passing and one skipped. CI runs the full suite on Ubuntu, macOS and Windows, builds the C++20 library on each, asserts that the native path actually loaded rather than falling back to Python, builds the web interface, and rejects private-corpus artifacts in both the current tree and reachable history.
+SQLite is the authoritative record. Message bodies and memory values are encrypted with AES-GCM. The key is held by whichever secret store the host operating system provides: Keychain on macOS, DPAPI on Windows, and the freedesktop secret service on Linux where `secret-tool` is available. Where none exists, which in practice means a Linux server or a CI runner, the key falls back to `data/local.key` with mode `0600`. That fallback is weaker than the other three and the code states so at the point it occurs.
 
-Running on all three catches a specific class of bug. Most of what breaks in this project breaks on exactly one platform and is invisible from the other two: a shared library named `.so` on a machine that only loads `.dll`, a temporary directory that cannot be deleted because a SQLite handle is still open, a shell script whose shebang picked up a carriage return.
+An important limit applies to the encryption claim. The searchable memory projection stores subject, predicate, and ordinary value in plaintext so that FTS5 can index it. Values classified as special-category data are excluded from that projection. An adversary with access to the database file may still learn a great deal from plaintext search fields, metadata, and access patterns. We do not claim full-database encryption.
 
-Every native function has a Python twin, and `tests/test_native_parity.py` runs both over randomised input and compares them. That test only means something when the compiled library actually loaded, which is why CI asserts it rather than assuming it.
+### 4.2 Local corpus retrieval
 
-`scripts/benchmark.py` measures each native function against its Python twin. These are the numbers from a Windows machine, an 8-core Ryzen 7 7735HS:
+Users may index PDF and EPUB files they lawfully own. The repository contains only small cover-identification thumbnails, never book text or extracted passages. Runtime indexes and local corpora are excluded from version control, and a repository guard checks both tracked files and reachable Git history, on the basis that deleting a private file in a later commit does not remove it from the repository. Retrieval fuses SQLite FTS5 lexical scores with an int8-quantised embedding, ranked by either the native or the Python path. One development machine held a private, locally supplied shelf of 57 books indexed into 10,311 passages; those files and all derived indexes are not distributed.
 
-| Operation | Python | Native | Relative result |
+Generated replies are rejected when they reproduce 12 or more consecutive words from an imported source. This is a practical output guard. It is not a legal opinion, and it does not substitute for using lawfully obtained material.
+
+### 4.3 Native hot paths and the parity contract
+
+Three operations run on every reply and are implemented twice. The C++ implementations cover the source-overlap guard, retrieval fusion, and memory scoring. Each has a Python twin written as the obviously correct reference.
+
+The two implementations are not assumed to agree. `tests/test_native_parity.py` executes both over randomised input and compares the results, which is where hand-ported code actually diverges. The native library is therefore an optimisation and never a requirement: a machine with no C++ compiler runs identical logic more slowly, and the loader treats a library missing an expected symbol as absent rather than failing at the first call.
+
+### 4.4 Cross-platform execution
+
+The build produces `libollie_native.dylib`, `libollie_native.so`, or `libollie_native.dll` according to the host, from a single translation unit and a single compiler invocation, with no build system. `native/build.py` locates MSVC through `vswhere` when no developer command prompt is open, and otherwise falls back to Clang or GCC.
+
+One launcher procedure serves all three platforms. `scripts/launch.py` contains the implementation; `START.command` and `START.bat` are four-line wrappers that locate a Python interpreter. Port availability is tested with a socket rather than `lsof`, Ollama is probed with `urllib` rather than `curl`, and a busy port is reclaimed only after the `/v1/health` endpoint confirms the listener belongs to Ollie. Any other process keeps its port and the launcher moves to the next free one.
+
+---
+
+## 5. Evaluation
+
+### 5.1 Test suite
+
+The suite is model-free by construction, which is what allows it to run in continuous integration without Ollama and what makes it deterministic. It collects 509 tests, of which 508 pass and one is skipped. The skip is conditional on a local book corpus being indexed, which is absent on any machine that has not supplied its own.
+
+Continuous integration runs the full suite on Ubuntu, macOS, and Windows; builds the C++20 library on each; asserts that the native path actually loaded rather than silently falling back to Python; builds the web interface; and rejects private-corpus artifacts in both the working tree and reachable history.
+
+Running on all three platforms is not redundancy. Most defects in this system manifest on exactly one platform and are invisible from the other two: a shared library named `.so` on a host that loads only `.dll`, a temporary directory that cannot be removed because a SQLite handle is still open, a shell script whose shebang acquired a carriage return during checkout.
+
+### 5.2 Performance of the native paths
+
+`scripts/benchmark.py` measures each native function against its Python twin. The figures below were obtained on a Windows machine with an 8-core AMD Ryzen 7 7735HS.
+
+| Operation | Python | Native | Ratio |
 |---|---:|---:|---:|
 | overlap guard, 120 by 150 words | 0.86 ms | 0.07 ms | 12x faster |
 | overlap guard, 150 by 400 words | 3.18 ms | 0.10 ms | 31x faster |
@@ -258,28 +233,99 @@ Every native function has a Python twin, and `tests/test_native_parity.py` runs 
 | fuse a pool of 400 | 0.164 ms | 0.174 ms | 0.9x, slower |
 | fuse a pool of 4000 | 3.65 ms | 1.01 ms | 3.6x faster |
 
-The slower fusion row is kept because it shows where the native boundary does not help: at a small pool size, marshalling the arrays through ctypes costs more than the arithmetic it saves. The overlap guard is the one that earns its place, because it runs on every reply against every retrieved passage.
+The negative result is retained deliberately. At small pool sizes, marshalling arrays across the `ctypes` boundary costs more than the arithmetic it replaces, and reporting only the favourable rows would misrepresent where the native boundary helps.
 
-## Run locally
+The overlap guard is the operation that justifies the native path, because it executes on every generated reply against every retrieved passage. Language model inference dominates end-to-end latency in all cases, so none of these measurements make a reply arrive sooner. What they buy is the ability to run the copyright and safety guards on every single turn rather than occasionally.
 
-Ollie runs the same way on macOS, Windows and Linux.
+### 5.3 What has not been evaluated
 
-Requirements: Python 3.12 or later, Node 20 or later, Git, and [Ollama](https://ollama.com) for real local generation. A C++20 compiler is optional because every native function has a Python fallback, but it is worth having: the copyright guard runs on every reply and is up to 58x faster in C++.
+This is an artifact description. The following questions are open, and nothing in this document should be read as evidence about them.
+
+There has been no user study. We have not measured whether the generated persona is experienced as a better conversational partner than a fixed one, whether the matching heuristic produces characters users prefer, or whether any of this affects how people feel.
+
+The matching heuristic has not been validated against any outcome. Its weights were chosen by design judgement. They are published so they can be criticised, not because they are calibrated.
+
+Safety behaviour is tested against known patterns, not against an adversary. The guard suite covers enumerated cases; it cannot establish the behaviour of every local model under an unbounded input distribution.
+
+Model coverage is uneven. `qwen3:14b` is the most heavily exercised configuration. The other tier recommendations are selected by RAM and have not been validated to the same depth.
+
+Cross-platform verification covers macOS, Windows, and Linux on x86-64, plus macOS on ARM through CI. The generic POSIX code path for other Unix systems is exercised by unit tests but has not been run on a BSD or Solaris host. The OS keystore integrations for macOS Keychain and Linux libsecret are implemented but not covered by automated tests, because the suite supplies a fixed key rather than invoking the platform keystore.
+
+---
+
+## 6. Safety design and scope
+
+Ollie generates adult fictional characters. Mature mode requires an explicit 18+ selection. Guards block content involving minors, coercion, exploitative dynamics, and a set of anti-dependency patterns.
+
+Crisis input takes a fixed route before model generation rather than being delegated to the model to improvise. The bundled crisis information is oriented to the Netherlands; users elsewhere should contact their local emergency or crisis service. Widening this coverage is open work and a good first contribution.
+
+Ollie is not therapy, not a medical device, not a clinical intervention, and not a substitute for human relationships. The World Health Organization's Commission on Social Connection reported in 2025 that one in six people worldwide experience loneliness [1]. Ollie does not claim to address that, and we present no evidence that it does. The narrower design question the artifact investigates is whether a private, persistent fictional character can make an interaction feel specific to one person while respecting explicit safety limits.
+
+---
+
+## 7. Data protection analysis
+
+The research-contribution screen in the current build is a simulation. It performs identifier scanning, pseudonymisation, special-category exclusion, a residual-linkability warning, a deterministic quote capped at EUR 8, and a local receipt. The displayed buyer, `Nova Robotics Research`, is fictional. Nothing is uploaded or sold, and the code contains no buyer integration, payment path, manual review process, partnership, or commercial agreement.
+
+The project authors report that they are exploring a future training-data marketplace and are in early conversations with firms about the method. This is a statement of intent provided by the authors, not evidence of an agreement, buyer, pilot, or launched service.
+
+The design under consideration is a voluntary arrangement in which a user could approve a reviewed, pseudonymised conversation sample, license it for a stated research purpose, and receive compensation. Removing direct identifiers does not make a conversation anonymous, and no sample should leave the device before residual identification risk, lawful basis, consent, purpose, recipient, retention, and withdrawal rights are all resolved.
+
+Under the EU General Data Protection Regulation the relevant provisions are:
+
+- Article 4(5) defines pseudonymisation [5]. Pseudonymised conversation data remains personal data where it can be attributed using additional information.
+- Article 5 sets the principles, including purpose limitation, data minimisation, and storage limitation [6].
+- Article 6 requires a lawful basis for processing [7].
+- Article 7 sets conditions for consent where consent is the chosen basis [8].
+- Article 9 imposes further restrictions on special-category data [9].
+- Recital 26 distinguishes data that still permits identification from information rendered genuinely anonymous [10]. Only the latter falls outside the Regulation.
+
+A real deployment would require a defined purpose and lawful basis, valid consent flows where applicable, data-subject rights handling, retention and deletion controls, security review, processor and recipient governance, transfer analysis, incident response, and a defensible anonymisation or pseudonymisation design. The simulation is not a claim of compliance. It exists to make these unresolved questions visible in the product rather than deferred.
+
+---
+
+## 8. Limitations
+
+The architectural boundary described in Section 1.2 concerns network exposure, not host security. A compromised device, another local user account, unencrypted backups, browser extensions, a remotely configured `OLLAMA_HOST`, or the plaintext searchable projection described in Section 4.1 can each expose data. Ollie has no cloud account to delete, and correspondingly no ability to protect a user from their own machine.
+
+The searchable memory projection is partly plaintext by necessity, since FTS5 cannot index ciphertext. Making local retrieval private without losing it is unsolved here and listed in Section 9.
+
+The safety guards are deterministic and enumerated, and therefore bounded by what was enumerated.
+
+The system requires a local model of useful size, which places a real hardware floor on the experience. The `xs` and `s` tiers exist so that the application runs, not because a 0.5b model produces a convincing character.
+
+---
+
+## 9. Future work
+
+The next useful work is not to make the character more agreeable. In rough priority order: validate model behaviour across the hardware tiers rather than assuming the `qwen3:14b` result generalises; make searchable storage private without losing local retrieval; test safety behaviour across a wider set of local models; broaden crisis-resource localisation beyond the Netherlands; add automated coverage for the macOS and Linux keystore paths; and define a governance process before any research-data contribution is permitted to leave a device.
+
+The marketplace remains a proposal until there is a lawful workflow, recipient due diligence, consent and withdrawal design, data-subject handling, security review, and evidence that released data cannot reasonably identify a person.
+
+---
+
+## 10. Availability and reproduction
+
+Source: [github.com/Coflazo/Ollie](https://github.com/Coflazo/Ollie). License: [Apache 2.0](LICENSE). Demonstration recording: [linked here](https://drive.google.com/file/d/1pdL71Q9w-dL1mPsI2Uc8jSNZsd8X2zWy/view?usp=sharing).
+
+### 10.1 Requirements
+
+Python 3.12 or later, Node 20 or later, Git, and [Ollama](https://ollama.com) for model inference. A C++20 compiler is optional, since every native function has a Python fallback, but recommended: the guard measured in Section 5.2 runs on every reply.
 
 | | macOS and Linux | Windows |
 |---|---|---|
-| Double-click | `START.command` | `START.bat` |
-| Already working in the tree | `./scripts/ollie` | `scripts\ollie.cmd` |
+| Double-click launcher | `START.command` | `START.bat` |
+| Working tree, no pull or tests | `./scripts/ollie` | `scripts\ollie.cmd` |
 | Build the native library | `./native/build.sh` | `native\build.cmd` |
-| Compiler, if you want one | `xcode-select --install`, or `apt install g++` | `winget install Microsoft.VisualStudio.2022.BuildTools` with the C++ workload, or `winget install LLVM.LLVM` |
+| Compiler, if wanted | `xcode-select --install`, or `apt install g++` | `winget install Microsoft.VisualStudio.2022.BuildTools` with the C++ workload, or `winget install LLVM.LLVM` |
 
-### Quick start
+### 10.2 Quick start
 
-Double-click the launcher for your platform. Both run the same script, `scripts/launch.py`: it pulls the latest main, creates the virtual environment and installs dependencies, builds the native library and the interface, runs the test suite, starts a locally installed Ollama, and opens Ollie. If Ollama is unavailable it falls back to scripted demo mode rather than refusing to start.
+Double-click the launcher for the platform. Both invoke `scripts/launch.py`, which pulls the latest `main`, creates the virtual environment, installs dependencies, builds the native library and the interface, runs the test suite, starts a locally installed Ollama, and opens the application. If Ollama is unavailable it enters demonstration mode rather than refusing to start.
 
-Running it twice is the normal way to use it. The second run replaces the copy already holding the port. Anything on that port that is not Ollie is left alone and the launcher moves to the next free port instead.
+Running the launcher twice is expected usage: the second invocation replaces the instance holding the port.
 
-### Manual setup
+### 10.3 Manual installation
 
 ```bash
 git clone https://github.com/Coflazo/Ollie.git
@@ -304,103 +350,126 @@ cd web; npm ci; npm run build; cd ..
 .venv\Scripts\python -m ollie serve
 ```
 
-Every command below is written for macOS and Linux. On Windows, replace `./.venv/bin/python` with `.venv\Scripts\python`; nothing else changes.
+Commands below are written for macOS and Linux. On Windows, substitute `.venv\Scripts\python` for `./.venv/bin/python`; nothing else differs.
 
-The server explains whether Ollama must be started and prints the exact `ollama pull` command when the recommended model is missing. To inspect the product without model inference:
+To inspect the system without model inference:
 
 ```bash
 ./.venv/bin/python -m ollie serve --demo
 ```
 
-To seed the continuity demonstration used during development:
+To seed the continuity demonstration described in Section 3.8:
 
 ```bash
 ./.venv/bin/python -m ollie seed --fresh --rollover --model qwen3:14b
 ./.venv/bin/python -m ollie serve --model qwen3:14b
 ```
 
-Useful maintenance commands:
+Maintenance and inspection:
 
 ```bash
-./.venv/bin/python -m ollie probe
+./.venv/bin/python -m ollie probe            # hardware probe and selected tier
 ./.venv/bin/python -m ollie ingest --books /path/to/lawfully-owned-books
-./.venv/bin/python -m ollie dump memories
+./.venv/bin/python -m ollie dump memories    # decrypts local records for inspection
 ./.venv/bin/python -m ollie dump corpus
-./.venv/bin/python -m ollie reset
-./.venv/bin/python -m pytest -q
+./.venv/bin/python -m ollie reset            # deletes conversations and memories
 python scripts/check_private_corpus.py
 ```
 
-To opt into an Ollama host on a trusted network:
+To direct inference at an Ollama host on a trusted network, which moves the boundary described in Section 1.2:
 
 ```bash
 OLLAMA_HOST=http://other-machine.local:11434 ./scripts/ollie
 ```
 
-## Contributing
-
-Issues and pull requests are welcome. The project has no CLA and no contributor agreement; contributions are accepted under the same [Apache 2.0](LICENSE) terms as the rest of the code.
-
-Everything needed to check a change runs from a clone, with no model and no network:
+### 10.4 Reproducing the reported measurements
 
 ```bash
-./.venv/bin/python -m pytest -q          # 509 tests, none of which need Ollama
-python native/build.py                    # optional C++ library, any of MSVC, Clang, GCC
-python scripts/check_private_corpus.py    # refuses books, databases and weights in Git
+./.venv/bin/python -m pytest -q        # Section 5.1: 509 collected, 508 pass, 1 skip
+python native/build.py                  # build the C++20 library for this host
+./.venv/bin/python scripts/benchmark.py # Section 5.2, prints the loaded path first
 ```
 
-Four house rules, each of which exists because breaking it caused a real problem:
+`benchmark.py` reports whether the native or the Python path is active before it reports timings. A run showing `native: python fallback` is measuring Python against Python and the numbers are not comparable to Section 5.2.
 
-Never commit books, databases, model weights, or conversation data. `check_private_corpus.py` runs in CI and checks reachable Git history as well as the current tree, because deleting a private file in a later commit does not remove it from the repository.
-
-Anything added to the C++ needs a Python twin and a case in `tests/test_native_parity.py`. The native path is an optimisation, never a requirement, and the parity test is what keeps the two implementations honest with each other.
-
-Test on the platform you changed, or let CI do it. Windows, macOS and Linux each hide a category of bug from the other two.
-
-The prose in this repository, including commit messages, does not use em dashes.
-
-Some open work, if you are looking for a place to start: crisis-resource coverage outside the Netherlands, validating more models across the RAM tiers, and making the searchable memory projection private without losing local retrieval.
-
-## Repository map
+### 10.5 Repository structure
 
 ```text
 ollie/
   api.py          localhost API and lifecycle
   persona.py      questionnaire, interview, candidates, and prompts
-  types16.py      transparent type inference and ranking
-  chat.py         buffered and guarded chat pipeline
+  types16.py      type inference and compatibility ranking (Sections 3.3, 3.4)
+  chat.py         buffered and guarded turn pipeline (Section 3.6)
   memory.py       extraction, state changes, and continuity capsules
-  retrieve.py     FTS5 memory and book retrieval
+  retrieve.py     FTS5 memory and corpus retrieval
   store.py        SQLite schema, encryption, provenance, and consent
   safety.py       input, output, adult, crisis, and dependency rules
   privacy.py      identifier scanning, pseudonymisation, and linkability
-  market.py       explicitly fictional local marketplace simulation
+  market.py       the marketplace simulation of Section 7
 
 prompts/          system contract and runtime templates
-native/           optional C++20 paths and Python fallbacks
-  build.py        one compiler invocation, MSVC or Clang or GCC, no CMake
-  loader.py       ctypes binding plus a Python twin of every function
-web/              React interface and local assets
-tests/            509 collected model-free tests
-docs/             product notes, handoff, and book cover identifiers
+native/           optional C++20 paths and their Python twins
+  build.py        single compiler invocation, MSVC or Clang or GCC, no build system
+  loader.py       ctypes binding and the Python reference implementations
+web/              React interface and self-hosted assets
+tests/            509 model-free tests
+docs/             design notes and setup guide
 scripts/
-  launch.py       the whole start procedure, shared by both double-click launchers
-  benchmark.py    native paths measured against their Python twins
-  check_private_corpus.py   refuses books, databases and weights in Git
+  launch.py       the full start procedure, shared by both launchers
+  benchmark.py    Section 5.2 measurements
+  check_private_corpus.py   rejects books, databases, and weights in Git
 
-START.command     double-click launcher for macOS and Linux
-START.bat         double-click launcher for Windows
-.gitattributes    pins LF on shell scripts so a Windows clone cannot break them
+START.command     launcher, macOS and Linux
+START.bat         launcher, Windows
+.gitattributes    pins LF on shell scripts so a Windows checkout cannot break them
 ```
 
-[`docs/PRODUCT.md`](docs/PRODUCT.md) explains the domain model and tradeoffs. [`docs/HANDOFF.md`](docs/HANDOFF.md) covers fresh-machine setup. [`NOTICE`](NOTICE) records third-party references and licensing boundaries.
+[`docs/PRODUCT.md`](docs/PRODUCT.md) records the domain model and design tradeoffs. [`docs/HANDOFF.md`](docs/HANDOFF.md) covers setup on a fresh machine. [`NOTICE`](NOTICE) records third-party references and licensing boundaries.
 
-## Roadmap
+---
 
-The next useful work is not to make the character more agreeable. It is to improve model validation across hardware tiers, make searchable storage private without losing local retrieval, test safety behavior across more local models, widen crisis-resource localization, and define a real governance process before any research-data contribution leaves the device.
+## 11. Contributing
 
-The marketplace remains a proposal until there is a real lawful workflow, recipient due diligence, consent and withdrawal design, data-subject handling, security review, and evidence that the released data cannot reasonably identify a person. The local simulation exists to make those unanswered questions visible.
+Issues and pull requests are welcome. There is no contributor licence agreement; contributions are accepted under the same [Apache 2.0](LICENSE) terms as the rest of the work.
 
-## License and third-party work
+Everything needed to check a change runs from a clone, with no model and no network:
 
-Ollie's original code is licensed under [Apache License 2.0](LICENSE). Dependencies, local models, fonts, optional tools, and referenced personality materials remain under their own terms. The repository does not bundle Ollama models or private book text. See [NOTICE](NOTICE) for the precise boundary.
+```bash
+./.venv/bin/python -m pytest -q
+python native/build.py
+python scripts/check_private_corpus.py
+```
+
+Four conventions, each of which exists because violating it caused a real defect:
+
+Never commit books, databases, model weights, or conversation data. `check_private_corpus.py` runs in CI and inspects reachable Git history as well as the working tree, because removing a private file in a later commit does not remove it from the repository.
+
+Any addition to the C++ requires a Python twin and a case in `tests/test_native_parity.py`. The native path is an optimisation and never a requirement.
+
+Test on the platform you changed, or let CI do it. Each of the three operating systems conceals a class of defect from the other two.
+
+Prose in this repository, including commit messages, does not use em dashes.
+
+Open work suitable for a first contribution is listed in Section 9, in particular crisis-resource coverage outside the Netherlands and automated tests for the macOS and Linux keystore paths.
+
+---
+
+## 12. License and third-party work
+
+Ollie's original code is licensed under the [Apache License 2.0](LICENSE). Dependencies, local models, fonts, optional tools, and referenced personality materials remain under their own terms. The repository bundles no Ollama models and no book text. See [NOTICE](NOTICE) for the precise boundary.
+
+---
+
+## References
+
+1. World Health Organization, Commission on Social Connection. <https://www.who.int/groups/commission-on-social-connection>
+2. The Myers-Briggs Company. MBTI facts and ethical use guidance. <https://www.themyersbriggs.com/en-US/Support/MBTI-Facts>
+3. The Myers-Briggs Company. Deliveroo case study. <https://www.themyersbriggs.com/en-US/Access-Resources/Case-Studies/Deliveroo>
+4. The Myers-Briggs Company. United States Air Force case study. <https://www.themyersbriggs.com/en-US/Access-Resources/Case-Studies/US-Air-Force>
+5. Regulation (EU) 2016/679, Article 4(5), pseudonymisation. <https://eur-lex.europa.eu/eli/reg/2016/679/art_4/oj/eng>
+6. Regulation (EU) 2016/679, Article 5, principles relating to processing. <https://eur-lex.europa.eu/eli/reg/2016/679/art_5/oj/eng>
+7. Regulation (EU) 2016/679, Article 6, lawfulness of processing. <https://eur-lex.europa.eu/eli/reg/2016/679/art_6/oj/eng>
+8. Regulation (EU) 2016/679, Article 7, conditions for consent. <https://eur-lex.europa.eu/eli/reg/2016/679/art_7/oj/eng>
+9. Regulation (EU) 2016/679, Article 9, special categories of personal data. <https://eur-lex.europa.eu/eli/reg/2016/679/art_9/oj/eng>
+10. Regulation (EU) 2016/679, Recital 26, anonymous information. <https://eur-lex.europa.eu/eli/reg/2016/679/rec_26/oj/eng>
+11. Ollama. <https://ollama.com>
